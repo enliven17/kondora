@@ -72,7 +72,7 @@ JSON: {"items":[{"i":number,"keep":boolean,"category":string,"summary":string,"s
           ...c,
           priceYes: usesFair ? (c.priceYes + fair) / 2 : c.priceYes,
           category: CATEGORIES.includes(it.category) ? it.category : c.category,
-          summary: (it.summary || c.summary).replace(/—/g, ",").slice(0, 180),
+          summary: (it.summary || c.summary).slice(0, 180),
         });
       }
     } catch {
@@ -187,5 +187,9 @@ export async function planMarkets({ existingKeys, openByCategory, maxNew }: Plan
     }
     if (!progressed) break;
   }
-  return picked;
+  return picked.map(clean);
 }
+
+/** House style: no em or en dashes in anything users read. */
+const dash = (t: string) => t.replace(/\s*[–—]\s*/g, ", ").replace(/,\s*,/g, ",");
+export const clean = (c: Candidate): Candidate => ({ ...c, question: dash(c.question), summary: dash(c.summary), rules: c.rules.map(dash) });
