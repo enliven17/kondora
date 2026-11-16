@@ -191,5 +191,5 @@ export async function planMarkets({ existingKeys, openByCategory, maxNew }: Plan
 }
 
 /** House style: no em or en dashes in anything users read. */
-const dash = (t: string) => t.replace(/\s*[20132014]\s*/g, ", ").replace(/,\s*,/g, ",");
+const dash = (t: string) => t.replace(/\s*[–—]\s*/g, ", ").replace(/,\s*,/g, ",");
 export const clean = (c: Candidate): Candidate => ({ ...c, question: dash(c.question), summary: dash(c.summary), rules: c.rules.map(dash) });
