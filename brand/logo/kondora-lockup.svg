@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 64" fill="none" role="img" aria-label="Kondora">
+  <title>Kondora</title>
+  <path fill="#F3EEE4" fill-rule="evenodd" transform="translate(0 2.5)" d="M32 13 L35.6 19.4 L62 12 L56 19.5 L60.5 20.5 L53 25.5 L56.5 27.5 L45.5 30 L37.5 35.5 L32 47 L26.5 35.5 L18.5 30 L7.5 27.5 L11 25.5 L3.5 20.5 L8 19.5 L2 12 L28.4 19.4 Z M27.6 22.4 L32 25.6 L36.4 22.4 L36.4 24.6 L32 27.8 L27.6 24.6 Z"/>
+  <g transform="translate(84 21) scale(0.55)" stroke="#F3EEE4" stroke-width="4.2" stroke-linejoin="miter" stroke-miterlimit="1.5"><path d="M1.75 0V40 M26 0 L4 22 M11 14.5 L28 40"/><ellipse cx="61" cy="20" rx="15.25" ry="18.25"/><path d="M95.75 40V0 L120.25 40V0"/><path d="M139.75 1.75 H149 A18.25 18.25 0 0 1 149 38.25 H139.75 Z"/><ellipse cx="201" cy="20" rx="15.25" ry="18.25"/><path d="M235.75 40V1.75 H249.5 A9.6 9.6 0 0 1 249.5 21 H235.75 M248 21 L261 40"/><path d="M277 40 L293 0 L309 40 M283.4 26 H302.6"/></g>
+</svg>

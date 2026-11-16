@@ -1,0 +1,194 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Kondora design tokens.
+ * Colors are RGB channels so Tailwind can apply alpha: rgb(var(--marble-50) / 0.6).
+ * Hex values are documented in brand/README.md.
+ */
+@layer base {
+  :root {
+    /* Night: backgrounds, deepest first */
+    --night-950: 5 7 13; /* #05070D */
+    --night-900: 10 15 28; /* #0A0F1C */
+    --night-800: 17 26 46; /* #111A2E */
+    --night-700: 27 38 64; /* #1B2640 */
+    --night-600: 41 55 88; /* #293758 */
+
+    /* Marble: text and light surfaces */
+    --marble-50: 243 238 228; /* #F3EEE4 */
+    --marble-200: 217 210 195; /* #D9D2C3 */
+    --marble-400: 158 153 141; /* #9E998D */
+    --marble-600: 107 104 97; /* #6B6861 */
+
+    --line: 35 49 80; /* #233150 */
+
+    /* Signals: patina for YES, terracotta for NO */
+    --yes: 126 196 164; /* #7EC4A4 */
+    --yes-soft: 22 48 44; /* #16302C */
+    --no: 222 132 108; /* #DE846C */
+    --no-soft: 52 28 28; /* #341C1C */
+
+    --gold: 184 155 94; /* #B89B5E */
+
+    --header-h: 4rem;
+    --page-x: clamp(1rem, 4vw, 2.5rem);
+
+    color-scheme: dark;
+  }
+
+  * {
+    @apply border-line;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    background: rgb(var(--night-950));
+  }
+
+  html.lenis,
+  html.lenis body {
+    height: auto;
+  }
+
+  .lenis.lenis-smooth {
+    scroll-behavior: auto !important;
+  }
+
+  .lenis.lenis-stopped {
+    overflow: hidden;
+  }
+
+  body {
+    @apply bg-night-950 font-sans text-marble-50 antialiased;
+    overflow-x: clip;
+    min-height: 100dvh;
+  }
+
+  ::selection {
+    background: rgb(var(--gold) / 0.35);
+    color: rgb(var(--marble-50));
+  }
+
+  :focus-visible {
+    outline: 2px solid rgb(var(--gold));
+    outline-offset: 2px;
+  }
+
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+}
+
+@layer components {
+  .page-x {
+    padding-inline: var(--page-x);
+  }
+
+  .micro {
+    @apply font-mono text-micro uppercase text-marble-400;
+  }
+
+  /* Fine film grain over imagery. Pure noise, no pattern. */
+  .grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.09;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* First-visit splash: hidden before paint when already seen this session. */
+html[data-splash="seen"] [data-splash-root] {
+  display: none;
+}
+
+/* Wallet adapter modal, restyled to Kondora tokens */
+.wallet-adapter-modal-wrapper {
+  background: rgb(var(--night-900)) !important;
+  border: 1px solid rgb(var(--line));
+  border-radius: 6px !important;
+  box-shadow: 0 24px 80px rgb(0 0 0 / 0.6) !important;
+  font-family: var(--font-sans), system-ui, sans-serif !important;
+}
+.wallet-adapter-modal-title {
+  font-family: var(--font-display), Georgia, serif !important;
+  font-weight: 400 !important;
+  font-size: 28px !important;
+  color: rgb(var(--marble-50)) !important;
+}
+.wallet-adapter-modal-overlay {
+  background: rgb(var(--night-950) / 0.8) !important;
+  backdrop-filter: blur(6px);
+}
+.wallet-adapter-modal-button-close {
+  border-radius: 4px !important;
+  background: rgb(var(--night-800)) !important;
+}
+.wallet-adapter-modal-list .wallet-adapter-button {
+  border-radius: 4px !important;
+  font-family: var(--font-sans), system-ui, sans-serif !important;
+  font-weight: 500 !important;
+}
+.wallet-adapter-modal-list .wallet-adapter-button:not([disabled]):hover {
+  background: rgb(var(--night-800)) !important;
+}
+.wallet-adapter-modal-list-more {
+  font-family: var(--font-mono), monospace !important;
+  font-size: 12px !important;
+  color: rgb(var(--marble-400)) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Numbers: modern grotesk, tabular, never the serif. */
+@layer components {
+  .num {
+    font-family: var(--font-sans), system-ui, sans-serif;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.03em;
+  }
+}
+
+/* Skeleton shimmer (stops under reduced motion via the global rule). */
+@layer components {
+  .skeleton {
+    background-color: rgb(var(--night-800));
+    background-image: linear-gradient(90deg, transparent 0%, rgb(var(--marble-50) / 0.06) 50%, transparent 100%);
+    background-size: 200% 100%;
+    background-repeat: no-repeat;
+    animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  }
+}
+
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
