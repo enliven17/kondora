@@ -151,6 +151,16 @@ await send(alice, [ix.closePosition({ signer: alice.publicKey, authority: alice.
 pa = activePositions((await user(alice)))[0];
 ok("half closed keeps half the debt", pa.debt === 200n * USDC);
 
+// ── Pause stops trading ──────────────────────────────────────────────────
+const cfgNow = await config();
+const upd = (paused: boolean) =>
+  ix.updateConfig({ admin: admin.publicKey, creator: creator.publicKey, oracle: oracle.publicKey, auditor: auditor.publicKey, validator: cfgNow.validator, params: cfgNow.params, paused });
+await send(admin, [upd(true)]);
+await fails("paused blocks opens", async () =>
+  send(bob, [ix.openPosition({ signer: bob.publicKey, authority: bob.publicKey, marketId: 1n, side: SIDE.NO, margin: 10n * USDC, levBps: 10_000n, minShares: 0n })]),
+);
+await send(admin, [upd(false)]);
+
 // ── Pre-close force close ────────────────────────────────────────────────
 await setTime(close1 - 3_000n);
 await fails("reduce-only window blocks leverage", async () =>
@@ -214,9 +224,13 @@ await send(admin, [ix.initUser(admin.publicKey), ix.deposit({ owner: admin.publi
 for (let i = 0; i < 12; i++) {
   const p = activePositions((await user(alice))).find((x) => x.market_id === 2n)!;
   const mm = (await market(2n));
-  if (amm.isLiquidatable({ z: mm.z, l: mm.l, feeBps: 50, mmBps: 500 }, 0, Number(p.shares), Number(p.debt))) break;
+  if (amm.isLiquidatableAtMark(mm.z, 500, 0, Number(p.shares), Number(p.debt))) break;
   await send(admin, [ix.openPosition({ signer: admin.publicKey, authority: admin.publicKey, marketId: 2n, side: SIDE.NO, margin: 150n * USDC, levBps: 10_000n, minShares: 0n })]);
 }
+await fails("mark lags a sudden push", async () =>
+  send(keeper, [ix.liquidate({ payer: keeper.publicKey, owner: alice.publicKey, marketId: 2n, side: SIDE.YES })]),
+);
+await setTime((await now()) + 1800n);
 await send(keeper, [ix.liquidate({ payer: keeper.publicKey, owner: alice.publicKey, marketId: 2n, side: SIDE.YES })]);
 ok("price liquidation", (await user(alice)).liquidations === 1 && (await market(2n)).debt_positions === 0);
 await setTime((await market(2n)).close_time);

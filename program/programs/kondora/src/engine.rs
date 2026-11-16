@@ -30,6 +30,21 @@ pub fn sync_liquidity(m: &mut Market, now: i64) {
     }
 }
 
+/// Advances the time-weighted mark toward the price that held since the last update.
+/// Call before any change to `z`.
+pub fn update_mark(m: &mut Market, now: i64) {
+    if m.mark_t == 0 {
+        m.mark_z = m.z;
+        m.mark_t = now;
+        return;
+    }
+    let a = ema_alpha(now - m.mark_t, MARK_TAU_SECS);
+    if a > 0.0 {
+        m.mark_z += a * (m.z - m.mark_z);
+        m.mark_t = now;
+    }
+}
+
 pub fn accrue(p: &mut Position, rate: u64, now: i64) {
     if p.debt > 0 {
         p.accrued = p
@@ -72,8 +87,13 @@ pub struct Health {
 
 /// Exact exit value of a position right now (AMM sell minus fee).
 pub fn health(m: &Market, p: &Position, now: i64) -> Result<Health> {
+    health_at(m, p, now, m.z, m.l)
+}
+
+/// Exit value of a position at an arbitrary AMM state (z, l).
+pub fn health_at(m: &Market, p: &Position, now: i64, z: f64, l: f64) -> Result<Health> {
     let side = side_of(p.side)?;
-    let (gross, _) = sell_proceeds(m.z, m.l, side, p.shares).ok_or(KondoraError::Math)?;
+    let (gross, _) = sell_proceeds(z, l, side, p.shares).ok_or(KondoraError::Math)?;
     let fee = bps_up(gross, m.params.fee_bps as u64).min(gross);
     let value = gross - fee;
     let accrued = p.accrued as u128
@@ -107,6 +127,7 @@ pub fn open(
     require!(u.balance >= margin, KondoraError::InsufficientBalance);
     let side = side_of(side_u8)?;
     sync_liquidity(m, now);
+    update_mark(m, now);
 
     let p_now = price(m.z, side);
     let cap = max_leverage_bps(
@@ -155,6 +176,11 @@ pub fn open(
 
     if pos.debt > 0 {
         require!(!health(m, &pos, now)?.liquidatable, KondoraError::Unhealthy);
+        // Size cap: the position must stay healthy even after liquidity decays
+        // to its floor, so a leveraged position is always small next to market
+        // depth and its forced sale cannot be farmed by a sandwich.
+        let floor_l = m.l0 * m.params.l_floor_bps as f64 / BPS as f64;
+        require!(!health_at(m, &pos, now, m.z, floor_l)?.liquidatable, KondoraError::Unhealthy);
     }
     u.positions[slot] = pos;
     u.balance -= margin;
@@ -183,6 +209,7 @@ pub fn close_slot(
     slot: usize,
     fraction_bps: u64,
     penalty_bps: u64,
+    require_solvent: bool,
     now: i64,
 ) -> Result<CloseResult> {
     let mut pos = u.positions[slot];
@@ -190,6 +217,7 @@ pub fn close_slot(
     require!(fraction_bps > 0, KondoraError::InvalidParams);
     let side = side_of(pos.side)?;
     sync_liquidity(m, now);
+    update_mark(m, now);
     accrue(&mut pos, m.params.borrow_bps_per_hour as u64, now);
 
     let mut s = mul_div(pos.shares, fraction_bps.min(BPS), BPS);
@@ -197,7 +225,7 @@ pub fn close_slot(
     if all {
         s = pos.shares;
     }
-    let (d, a, mg) = if all {
+    let (d, mut a, mg) = if all {
         (pos.debt, pos.accrued, pos.margin)
     } else {
         (
@@ -206,6 +234,10 @@ pub fn close_slot(
             mul_div(pos.margin, fraction_bps, BPS),
         )
     };
+    // Once the principal is fully repaid, all accrued interest is due too.
+    if d == pos.debt {
+        a = pos.accrued;
+    }
 
     let (gross, z2) = if s > 0 {
         sell_proceeds(m.z, m.l, side, s).ok_or(KondoraError::Math)?
@@ -215,6 +247,9 @@ pub fn close_slot(
     let fee = bps_up(gross, m.params.fee_bps as u64).min(gross);
     let net = gross - fee;
     let owed = d + a;
+    // Only liquidations may realize bad debt; an owner cannot dump an
+    // underwater position onto the lend pool.
+    require!(!(require_solvent && net < owed), KondoraError::Unhealthy);
     let (repaid, interest, shortfall, mut to_user) = if net >= owed {
         (d, a, 0, net - owed)
     } else {
@@ -264,29 +299,82 @@ pub fn close(
     require!(m.state == ST_OPEN, KondoraError::MarketNotOpen);
     require!(now < m.close_time, KondoraError::TradingClosed);
     let slot = u.find(m.id, side_u8).ok_or(KondoraError::NoPosition)?;
-    let r = close_slot(m, u, slot, fraction_bps, 0, now)?;
+    let r = close_slot(m, u, slot, fraction_bps, 0, true, now)?;
     require!(r.to_user >= min_out, KondoraError::Slippage);
     Ok(r)
 }
 
-/// Permissionless. Closes a leveraged position that is under maintenance
-/// margin (with penalty), or any leveraged position inside the halt window
-/// before close (no penalty), so no debt ever reaches resolution.
+/// Mark-based health: value of the shares at the time-weighted mark, no AMM.
+pub fn mark_health(m: &Market, p: &Position, now: i64) -> Result<Health> {
+    let side = side_of(p.side)?;
+    let value = libm::floor(p.shares as f64 * price(m.mark_z, side)) as u64;
+    let accrued = p.accrued as u128
+        + borrow_fee(p.debt, m.params.borrow_bps_per_hour as u64, now - p.last_accrual) as u128;
+    let equity = value as i128 - p.debt as i128 - accrued as i128;
+    let maint = bps_down(value, m.params.mm_bps as u64) as i128;
+    Ok(Health { value, equity, liquidatable: p.debt > 0 && equity <= maint })
+}
+
+/// Permissionless. Hands a leveraged position to the House at the
+/// time-weighted mark, without trading against the AMM:
+/// - under maintenance at the mark: liquidation with penalty,
+/// - inside the halt window before close: force close, no penalty.
+/// The House takes the shares and forgives the loan; the owner gets what is
+/// left of the mark value after debt, interest and penalty. Because nothing is
+/// sold into the pool, a price push cannot be farmed through someone else's
+/// liquidation, and a decayed or lopsided pool can never block it.
 pub fn liquidate(m: &mut Market, u: &mut UserAccount, side_u8: u8, now: i64) -> Result<CloseResult> {
     require!(m.state == ST_OPEN, KondoraError::MarketNotOpen);
     let slot = u.find(m.id, side_u8).ok_or(KondoraError::NoPosition)?;
-    let pos = u.positions[slot];
+    let mut pos = u.positions[slot];
     require!(pos.debt > 0, KondoraError::NoPosition);
+    let side = side_of(side_u8)?;
     sync_liquidity(m, now);
-    let h = health(m, &pos, now)?;
+    update_mark(m, now);
+    accrue(&mut pos, m.params.borrow_bps_per_hour as u64, now);
+    let h = mark_health(m, &pos, now)?;
     let halted = now >= m.close_time - m.params.halt_secs;
     require!(h.liquidatable || halted, KondoraError::Healthy);
-    let penalty = if h.liquidatable { m.params.liq_bps as u64 } else { 0 };
-    let r = close_slot(m, u, slot, BPS, penalty, now)?;
+
+    let owed = pos.debt as u128 + pos.accrued as u128;
+    let penalty = if h.liquidatable { bps_down(h.value, m.params.liq_bps as u64) } else { 0 };
+    let equity = h.value as u128;
+    let mut to_user = equity.saturating_sub(owed).saturating_sub(penalty as u128) as u64;
+    // Pay the owner from the lend pool, then from cash above every side's claims.
+    let from_lend = to_user.min(m.lend_pool);
+    let (qy, qn) = match side {
+        Side::Yes => (m.q_yes.saturating_sub(pos.shares), m.q_no),
+        Side::No => (m.q_yes, m.q_no.saturating_sub(pos.shares)),
+    };
+    let spare_cash = m.cash.saturating_sub(qy.max(qn));
+    let from_cash = (to_user - from_lend).min(spare_cash);
+    to_user = from_lend + from_cash;
+
+    m.lend_pool -= from_lend;
+    m.cash -= from_cash;
+    sub_q(m, side, pos.shares)?;
+    m.open_debt = m.open_debt.checked_sub(pos.debt).ok_or(KondoraError::Math)?;
+    m.bad_debt = m.bad_debt.saturating_add((pos.debt as u128).saturating_sub(equity) as u64);
+    m.debt_positions = m.debt_positions.checked_sub(1).ok_or(KondoraError::Math)?;
+    m.trades += 1;
+
+    u.balance = u.balance.checked_add(to_user).ok_or(KondoraError::Math)?;
+    u.realized_pnl = u.realized_pnl.saturating_add(to_user as i64 - pos.margin as i64);
     if h.liquidatable {
         u.liquidations += 1;
     }
-    Ok(r)
+    u.positions[slot] = Position::default();
+    check_solvency(m)?;
+    Ok(CloseResult {
+        shares: pos.shares,
+        gross: h.value,
+        fee: 0,
+        repaid: 0,
+        interest: 0,
+        shortfall: (owed.saturating_sub(equity)) as u64,
+        penalty: if h.liquidatable { penalty.max(1) } else { 0 },
+        to_user,
+    })
 }
 
 /// Payout per share side for a resolved market.
@@ -327,8 +415,10 @@ pub fn close_market(m: &mut Market, now: i64) -> Result<()> {
     require!(m.state == ST_OPEN, KondoraError::WrongState);
     require!(now >= m.close_time, KondoraError::TradingStillOpen);
     require!(m.debt_positions == 0 && m.open_debt == 0, KondoraError::DebtOutstanding);
+    update_mark(m, now);
     m.state = ST_CLOSED;
-    m.final_price_yes = price(m.z, Side::Yes);
+    // Time-weighted, so a last-second push cannot set the INVALID payout.
+    m.final_price_yes = price(m.mark_z, Side::Yes);
     Ok(())
 }
 
@@ -394,6 +484,8 @@ mod tests {
             l0,
             l: l0,
             final_price_yes: 0.0,
+            mark_z: z0,
+            mark_t: 0,
             cash: subsidy,
             q_yes: 0,
             q_no: 0,
@@ -481,13 +573,17 @@ mod tests {
             if open(&mut m, &mut whale, 1, 200 * USDC, 10_000, 0, HOUR).is_err() {
                 break;
             }
-            if health(&m, &a.positions[a.find(1, 0).unwrap()], HOUR).unwrap().liquidatable {
+            let mut probe = m.clone();
+            probe.mark_z = probe.z;
+            if mark_health(&probe, &a.positions[a.find(1, 0).unwrap()], HOUR).unwrap().liquidatable {
                 break;
             }
         }
         let h = health(&m, &a.positions[a.find(1, 0).unwrap()], HOUR).unwrap();
         assert!(h.liquidatable);
-        let r = liquidate(&mut m, &mut a, 0, HOUR).unwrap();
+        // Spot is under water but the time-weighted mark has not followed yet.
+        assert!(liquidate(&mut m, &mut a, 0, HOUR).is_err(), "mark must lag a sudden move");
+        let r = liquidate(&mut m, &mut a, 0, 2 * HOUR).unwrap();
         assert_eq!(m.debt_positions, 0);
         assert_eq!(a.liquidations, 1);
         assert!(r.penalty > 0 || r.to_user == 0);
@@ -555,5 +651,86 @@ mod tests {
         // 400 USDC debt, 2 bps/hour, 10 hours = 0.8 USDC
         assert_eq!(r.interest, 800_000);
         assert!(m.fees > fees_before + r.interest);
+    }
+
+    /// Attack from the security review: a leveraged position plus a second
+    /// account that dumps the price must not extract value from the lend pool.
+    #[test]
+    fn sandwich_on_own_leverage_is_not_profitable() {
+        for margin in [5_000 * USDC, 1_000 * USDC, 200 * USDC] {
+            let mut m = market(10_000 * USDC, 50_000 * USDC, 0.0);
+            let mut a = user(margin);
+            let mut b = user(200_000 * USDC);
+            let t0 = a.balance as i128 + b.balance as i128;
+            if open(&mut m, &mut a, 0, margin, 50_000, 0, HOUR).is_err() {
+                continue; // size cap rejected it: attack impossible
+            }
+            for _ in 0..200 {
+                if open(&mut m, &mut b, 1, 1_000 * USDC, 10_000, 0, HOUR).is_err() {
+                    break;
+                }
+            }
+            // owner cannot dump an underwater position
+            let slot = a.find(1, 0).unwrap();
+            let h = health(&m, &a.positions[slot], HOUR).unwrap();
+            if h.equity < 0 {
+                assert!(close(&mut m, &mut a, 0, 10_000, 0, HOUR).is_err());
+            }
+            // same-slot liquidation is blocked by the mark; attacker must hold the price
+            assert!(liquidate(&mut m, &mut a, 0, HOUR).is_err() || !h.liquidatable);
+            let later = HOUR + 2 * 3600;
+            let _ = liquidate(&mut m, &mut a, 0, later);
+            close(&mut m, &mut b, 1, 10_000, 0, later).unwrap();
+            if let Some(i) = a.find(1, 0) {
+                let _ = i;
+                let _ = close(&mut m, &mut a, 0, 10_000, 0, later);
+            }
+            let t1 = a.balance as i128 + b.balance as i128;
+            assert!(t1 <= t0, "attacker profit {} at margin {}", t1 - t0, margin);
+        }
+    }
+
+    /// From the security review: a lopsided market plus decay must never lock
+    /// a leveraged position (and therefore the market).
+    #[test]
+    fn decayed_lopsided_market_still_liquidates_and_closes() {
+        for margin in [10_000 * USDC, 2_000 * USDC, 300 * USDC] {
+            let mut m = market(10_000 * USDC, 50_000 * USDC, -2.0);
+            let mut a = user(100_000 * USDC);
+            if open(&mut m, &mut a, 0, margin, 11_000, 0, HOUR).is_err() {
+                continue;
+            }
+            let halt = m.close_time - 300;
+            liquidate(&mut m, &mut a, 0, halt).unwrap();
+            assert_eq!(m.debt_positions, 0);
+            close_market(&mut m, 72 * HOUR).unwrap();
+            check_solvency(&m).unwrap();
+        }
+    }
+
+    #[test]
+    fn invalid_mark_ignores_last_second_push() {
+        let mut m = market(5_000 * USDC, 5_000 * USDC, 0.0);
+        let mut whale = user(50_000 * USDC);
+        let close_t = m.close_time;
+        // price sits at 0.5 for the whole market life, then a push in the last second
+        open(&mut m, &mut whale, 0, 10 * USDC, 10_000, 0, HOUR).unwrap();
+        open(&mut m, &mut whale, 0, 4_000 * USDC, 10_000, 0, close_t - 1).unwrap();
+        assert!(price(m.z, Side::Yes) > 0.8);
+        close_market(&mut m, close_t).unwrap();
+        assert!(m.final_price_yes < 0.55, "final mark {}", m.final_price_yes);
+    }
+
+    #[test]
+    fn partial_closes_settle_all_interest() {
+        let mut m = market(10_000 * USDC, 50_000 * USDC, 0.0);
+        let mut a = user(1_000 * USDC);
+        open(&mut m, &mut a, 0, 100 * USDC, 30_000, 0, 0).unwrap();
+        close(&mut m, &mut a, 0, 3_333, 0, 7 * HOUR).unwrap();
+        close(&mut m, &mut a, 0, 5_000, 0, 9 * HOUR).unwrap();
+        close(&mut m, &mut a, 0, 10_000, 0, 11 * HOUR).unwrap();
+        assert!(a.find(1, 0).is_none());
+        assert_eq!(m.open_debt, 0);
+        assert_eq!(m.lend_pool + m.bad_debt, 50_000 * USDC);
     }
 }

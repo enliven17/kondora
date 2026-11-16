@@ -36,11 +36,13 @@ pub mod kondora {
         creator: Pubkey,
         oracle: Pubkey,
         auditor: Pubkey,
+        validator: Pubkey,
         params: Params,
     ) -> Result<()> {
         require!(params.validate(), KondoraError::InvalidParams);
         let c = &mut ctx.accounts.config;
         c.admin = ctx.accounts.admin.key();
+        c.validator = validator;
         c.creator = creator;
         c.oracle = oracle;
         c.auditor = auditor;
@@ -58,11 +60,13 @@ pub mod kondora {
         creator: Pubkey,
         oracle: Pubkey,
         auditor: Pubkey,
+        validator: Pubkey,
         params: Params,
         paused: bool,
     ) -> Result<()> {
         require!(params.validate(), KondoraError::InvalidParams);
         let c = &mut ctx.accounts.config;
+        c.validator = validator;
         c.creator = creator;
         c.oracle = oracle;
         c.auditor = auditor;
@@ -187,6 +191,8 @@ pub mod kondora {
         m.close_time = close_time;
         m.z0 = z0;
         m.z = z0;
+        m.mark_z = z0;
+        m.mark_t = now;
         m.l0 = l0;
         m.l = l0;
         m.cash = subsidy;
@@ -220,6 +226,7 @@ pub mod kondora {
         lev_bps: u64,
         min_shares: u64,
     ) -> Result<()> {
+        require!(!ctx.accounts.config.paused, KondoraError::Paused);
         let now = Clock::get()?.unix_timestamp;
         let m = &mut ctx.accounts.market;
         let u = &mut ctx.accounts.user;
@@ -244,6 +251,11 @@ pub mod kondora {
         SessionError::InvalidToken
     )]
     pub fn close_position(ctx: Context<Trade>, side: u8, fraction_bps: u64, min_out: u64) -> Result<()> {
+        // A session key may only close with a slippage bound, so a leaked key
+        // cannot dump positions into a sandwich.
+        if ctx.accounts.signer.key() != ctx.accounts.authority.key() {
+            require!(min_out > 0, KondoraError::Slippage);
+        }
         let now = Clock::get()?.unix_timestamp;
         let m = &mut ctx.accounts.market;
         let u = &mut ctx.accounts.user;
@@ -376,14 +388,12 @@ pub mod kondora {
     // ── Ephemeral Rollup delegation ──────────────────────────────────────
 
     pub fn delegate_user(ctx: Context<DelegateUser>) -> Result<()> {
+        let validator = pinned_validator(&ctx.accounts.config, ctx.remaining_accounts)?;
         let owner = ctx.accounts.owner.key();
         ctx.accounts.delegate_user(
             &ctx.accounts.owner,
             &[USER_SEED, owner.as_ref()],
-            DelegateConfig {
-                validator: ctx.remaining_accounts.first().map(|a| a.key()),
-                ..Default::default()
-            },
+            DelegateConfig { validator, ..Default::default() },
         )?;
         Ok(())
     }
@@ -406,13 +416,11 @@ pub mod kondora {
             let m = Market::try_deserialize(&mut &data[..])?;
             require!(m.state == ST_OPEN, KondoraError::WrongState);
         }
+        let validator = pinned_validator(&ctx.accounts.config, ctx.remaining_accounts)?;
         ctx.accounts.delegate_market(
             &ctx.accounts.payer,
             &[MARKET_SEED, &id.to_le_bytes()],
-            DelegateConfig {
-                validator: ctx.remaining_accounts.first().map(|a| a.key()),
-                ..Default::default()
-            },
+            DelegateConfig { validator, ..Default::default() },
         )?;
         Ok(())
     }
@@ -436,6 +444,16 @@ pub mod kondora {
         .build_and_invoke()?;
         Ok(())
     }
+}
+
+/// The validator from remaining_accounts[0], which must match Config.validator
+/// when one is pinned.
+fn pinned_validator(config: &Config, remaining: &[AccountInfo]) -> Result<Option<Pubkey>> {
+    let given = remaining.first().map(|a| a.key());
+    if config.validator != Pubkey::default() {
+        require!(given == Some(config.validator), KondoraError::Unauthorized);
+    }
+    Ok(given)
 }
 
 fn vault_pay<'info>(
@@ -545,6 +563,8 @@ pub struct CreateMarket<'info> {
 #[derive(Accounts, Session)]
 pub struct Trade<'info> {
     pub signer: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Box<Account<'info, Config>>,
     /// CHECK: wallet that owns `user`; checked by the PDA seeds and the session macro.
     pub authority: UncheckedAccount<'info>,
     #[account(mut, seeds = [USER_SEED, authority.key().as_ref()], bump = user.bump)]
@@ -628,6 +648,8 @@ pub struct Sweep<'info> {
 pub struct DelegateUser<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Box<Account<'info, Config>>,
     /// CHECK: the owner's user PDA, validated by seeds.
     #[account(mut, del, seeds = [USER_SEED, owner.key().as_ref()], bump)]
     pub user: AccountInfo<'info>,
@@ -648,6 +670,8 @@ pub struct UndelegateUser<'info> {
 pub struct DelegateMarket<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump, constraint = config.creator == payer.key() @ KondoraError::Unauthorized)]
+    pub config: Box<Account<'info, Config>>,
     /// CHECK: market PDA, validated by seeds; state checked in the handler.
     #[account(mut, del, seeds = [MARKET_SEED, &id.to_le_bytes()], bump)]
     pub market: AccountInfo<'info>,

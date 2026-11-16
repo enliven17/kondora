@@ -74,6 +74,7 @@ export interface ConfigAccount {
   auditor: PublicKey;
   usdc_mint: PublicKey;
   vault: PublicKey;
+  validator: PublicKey;
   params: Params;
   next_market_id: bigint;
   house_free: bigint;
@@ -103,6 +104,8 @@ export interface MarketAccount {
   l0: number;
   l: number;
   final_price_yes: number;
+  mark_z: number;
+  mark_t: bigint;
   cash: bigint;
   q_yes: bigint;
   q_no: bigint;
@@ -213,14 +216,23 @@ export function buildIx(
 // ── Friendly builders ────────────────────────────────────────────────────
 
 export const ix = {
-  initialize: (p: { admin: PublicKey; usdcMint: PublicKey; creator: PublicKey; oracle: PublicKey; auditor: PublicKey; params?: Params }) =>
+  initialize: (p: {
+    admin: PublicKey;
+    usdcMint: PublicKey;
+    creator: PublicKey;
+    oracle: PublicKey;
+    auditor: PublicKey;
+    /** Pinned ER validator; PublicKey.default allows any. */
+    validator?: PublicKey;
+    params?: Params;
+  }) =>
     buildIx(
       "initialize",
       { admin: p.admin, config: configPda(), usdc_mint: p.usdcMint, vault: vaultPda(), token_program: TOKEN_PROGRAM_ID },
-      { creator: p.creator, oracle: p.oracle, auditor: p.auditor, params: p.params ?? DEFAULT_PARAMS },
+      { creator: p.creator, oracle: p.oracle, auditor: p.auditor, validator: p.validator ?? PublicKey.default, params: p.params ?? DEFAULT_PARAMS },
     ),
 
-  updateConfig: (p: { admin: PublicKey; creator: PublicKey; oracle: PublicKey; auditor: PublicKey; params: Params; paused: boolean }) =>
+  updateConfig: (p: { admin: PublicKey; creator: PublicKey; oracle: PublicKey; auditor: PublicKey; validator: PublicKey; params: Params; paused: boolean }) =>
     buildIx("update_config", { admin: p.admin, config: configPda() }, p),
 
   houseDeposit: (p: { admin: PublicKey; adminToken: PublicKey; amount: bigint }) =>
@@ -290,7 +302,7 @@ export const ix = {
   }) =>
     buildIx(
       "open_position",
-      { signer: p.signer, authority: p.authority, user: userPda(p.authority), market: marketPda(p.marketId), session_token: p.sessionToken },
+      { signer: p.signer, config: configPda(), authority: p.authority, user: userPda(p.authority), market: marketPda(p.marketId), session_token: p.sessionToken },
       { side: p.side, margin: p.margin, lev_bps: p.levBps, min_shares: p.minShares },
     ),
 
@@ -305,7 +317,7 @@ export const ix = {
   }) =>
     buildIx(
       "close_position",
-      { signer: p.signer, authority: p.authority, user: userPda(p.authority), market: marketPda(p.marketId), session_token: p.sessionToken },
+      { signer: p.signer, config: configPda(), authority: p.authority, user: userPda(p.authority), market: marketPda(p.marketId), session_token: p.sessionToken },
       { side: p.side, fraction_bps: p.fractionBps, min_out: p.minOut },
     ),
 
@@ -345,7 +357,7 @@ export const ix = {
     const user = userPda(owner);
     return buildIx(
       "delegate_user",
-      { owner, user, ...delegationAccounts("user", user) },
+      { owner, config: configPda(), user, ...delegationAccounts("user", user) },
       {},
       validator ? [{ pubkey: validator, isSigner: false, isWritable: false }] : [],
     );
@@ -357,7 +369,7 @@ export const ix = {
     const market = marketPda(marketId);
     return buildIx(
       "delegate_market",
-      { payer, market, ...delegationAccounts("market", market) },
+      { payer, config: configPda(), market, ...delegationAccounts("market", market) },
       { id: marketId },
       validator ? [{ pubkey: validator, isSigner: false, isWritable: false }] : [],
     );

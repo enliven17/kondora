@@ -73,14 +73,19 @@ pub fn buy_cost(z: f64, l: f64, side: Side, n: u64) -> Option<(u64, f64)> {
 }
 
 /// USDC proceeds (micro, rounded down) for selling `n` shares, and the new z.
+/// Never fails for a valid state: past the lower bound the curve is clamped at
+/// -Z_LIMIT and the excess shares are absorbed at (almost) zero price, so a
+/// position can always be closed or liquidated. Solvency still holds because
+/// proceeds never exceed the shares sold and the other side's reserve stays
+/// non-negative.
 pub fn sell_proceeds(z: f64, l: f64, side: Side, n: u64) -> Option<(u64, f64)> {
     let zs = oriented(z, side);
-    let zs2 = zs - n as f64 / l;
-    if !(zs2.is_finite()) || zs2 < -Z_LIMIT {
+    if !(l > 0.0) || !zs.is_finite() {
         return None;
     }
+    let zs2 = (zs - n as f64 / l).max(-Z_LIMIT).min(zs);
     let raw = l * (g(zs) - g(zs2));
-    let out = if raw <= 1.0 { 0 } else { floor(raw) as u64 - 1 };
+    let out = if raw <= 1.0 { 0 } else { (floor(raw) as u64 - 1).min(n) };
     Some((out, oriented(zs2, side)))
 }
 
@@ -161,6 +166,14 @@ pub fn max_leverage_bps(max_lev_bps: u64, tau: i64, tau0: i64, p: f64, reduce_on
 }
 
 /// Linear borrow fee on `debt` over `dt` seconds.
+/// Exponential moving average weight for `dt` seconds with time constant `tau`.
+pub fn ema_alpha(dt: i64, tau: i64) -> f64 {
+    if dt <= 0 {
+        return 0.0;
+    }
+    1.0 - exp(-(dt as f64) / tau.max(1) as f64)
+}
+
 pub fn borrow_fee(debt: u64, bps_per_hour: u64, dt: i64) -> u64 {
     if dt <= 0 || debt == 0 {
         return 0;
@@ -293,6 +306,16 @@ mod tests {
             assert!(x <= (s - qy) as f64 + 2.0, "pool YES reserves exceed holdings");
             assert!(y <= (s - qn) as f64 + 2.0, "pool NO reserves exceed holdings");
         }
+    }
+
+    #[test]
+    fn sells_clamp_instead_of_failing() {
+        let l = 1_000.0;
+        let (out, z2) = sell_proceeds(-7.9, l, Side::Yes, 1_000_000).unwrap();
+        assert!(close(z2, -Z_LIMIT, 1e-12));
+        assert!(out <= 1_000_000);
+        let (out_no, _) = sell_proceeds(7.9, l, Side::No, 1_000_000).unwrap();
+        assert!(out_no <= 1_000_000);
     }
 
     #[test]

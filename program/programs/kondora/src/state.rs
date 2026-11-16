@@ -6,6 +6,8 @@ pub const USER_SEED: &[u8] = b"user";
 pub const MARKET_SEED: &[u8] = b"market";
 
 pub const MAX_POSITIONS: usize = 24;
+/// Mark price time constant.
+pub const MARK_TAU_SECS: i64 = 300;
 
 pub const ST_OPEN: u8 = 0;
 pub const ST_CLOSED: u8 = 1;
@@ -65,6 +67,8 @@ pub struct Config {
     pub auditor: Pubkey,
     pub usdc_mint: Pubkey,
     pub vault: Pubkey,
+    /// Ephemeral Rollup validator every delegation must use (default = any).
+    pub validator: Pubkey,
     pub params: Params,
     pub next_market_id: u64,
     /// House (protocol market maker) capital not committed to any market.
@@ -98,6 +102,10 @@ pub struct Market {
     pub l: f64,
     /// Price of YES frozen when trading closed. Used for INVALID payouts.
     pub final_price_yes: f64,
+    /// Time-weighted mark (EMA of z). Used for liquidation triggers and the
+    /// INVALID payout so a single trade cannot move them.
+    pub mark_z: f64,
+    pub mark_t: i64,
     /// Complete sets minted (USDC held by the AMM side of the market).
     pub cash: u64,
     pub q_yes: u64,

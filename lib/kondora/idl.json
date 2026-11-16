@@ -205,6 +205,24 @@
           "signer": true
         },
         {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
           "name": "authority"
         },
         {
@@ -401,6 +419,24 @@
           "signer": true
         },
         {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
           "name": "buffer_market",
           "writable": true,
           "pda": {
@@ -591,6 +627,24 @@
           "name": "owner",
           "writable": true,
           "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
         },
         {
           "name": "buffer_user",
@@ -1136,6 +1190,10 @@
           "type": "pubkey"
         },
         {
+          "name": "validator",
+          "type": "pubkey"
+        },
+        {
           "name": "params",
           "type": {
             "defined": {
@@ -1235,6 +1293,24 @@
         {
           "name": "signer",
           "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
         },
         {
           "name": "authority"
@@ -1803,6 +1879,10 @@
           "type": "pubkey"
         },
         {
+          "name": "validator",
+          "type": "pubkey"
+        },
+        {
           "name": "params",
           "type": {
             "defined": {
@@ -2237,6 +2317,13 @@
             "type": "pubkey"
           },
           {
+            "name": "validator",
+            "docs": [
+              "Ephemeral Rollup validator every delegation must use (default = any)."
+            ],
+            "type": "pubkey"
+          },
+          {
             "name": "params",
             "type": {
               "defined": {
@@ -2372,6 +2459,18 @@
               "Price of YES frozen when trading closed. Used for INVALID payouts."
             ],
             "type": "f64"
+          },
+          {
+            "name": "mark_z",
+            "docs": [
+              "Time-weighted mark (EMA of z). Used for liquidation triggers and the",
+              "INVALID payout so a single trade cannot move them."
+            ],
+            "type": "f64"
+          },
+          {
+            "name": "mark_t",
+            "type": "i64"
           },
           {
             "name": "cash",

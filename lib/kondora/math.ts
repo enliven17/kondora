@@ -66,12 +66,29 @@ export function buyCost(z: number, l: number, side: Side, n: number): { cost: nu
   return { cost: Math.ceil(l * (g(zs2) - g(zs))) + 1, z: oriented(zs2, side) };
 }
 
+/** Never fails: the curve is clamped at -Z_LIMIT like the program. */
 export function sellProceeds(z: number, l: number, side: Side, n: number): { out: number; z: number } | null {
   const zs = oriented(z, side);
-  const zs2 = zs - n / l;
-  if (!Number.isFinite(zs2) || zs2 < -Z_LIMIT) return null;
+  if (!(l > 0) || !Number.isFinite(zs)) return null;
+  const zs2 = Math.min(Math.max(zs - n / l, -Z_LIMIT), zs);
   const raw = l * (g(zs) - g(zs2));
-  return { out: raw <= 1 ? 0 : Math.floor(raw) - 1, z: oriented(zs2, side) };
+  return { out: raw <= 1 ? 0 : Math.min(Math.floor(raw) - 1, n), z: oriented(zs2, side) };
+}
+
+export const MARK_TAU_SECS = 300;
+
+/** Time-weighted mark as the program would compute it at `now`. */
+export function markAt(markZ: number, markT: number, z: number, now: number): number {
+  if (markT === 0) return z;
+  const dt = now - markT;
+  return dt > 0 ? markZ + (1 - Math.exp(-dt / MARK_TAU_SECS)) * (z - markZ) : markZ;
+}
+
+/** Liquidation check used on-chain: shares valued at the mark, no AMM slippage. */
+export function isLiquidatableAtMark(markZ: number, mmBps: number, side: Side, shares: number, debt: number, accrued = 0): boolean {
+  if (debt <= 0) return false;
+  const v = Math.floor(shares * priceOf(markZ, side));
+  return v - debt - accrued <= Math.floor((v * mmBps) / BPS);
 }
 
 export function sharesForCost(z: number, l: number, side: Side, c: number): { shares: number; z: number } | null {
@@ -166,23 +183,12 @@ export function isLiquidatable(s: PoolState, side: Side, shares: number, debt: n
 }
 
 /**
- * Price of this position's side at which it becomes liquidatable, holding
- * liquidity constant. Bisection on z; returns the side's price.
+ * Mark price of this position's side at which it is liquidated:
+ * shares * p - debt <= mm * shares * p  =>  p = debt / (shares * (1 - mm)).
  */
-export function liquidationPrice(s: PoolState, side: Side, shares: number, debt: number): number | null {
-  if (debt <= 0) return null;
-  const zs0 = oriented(s.z, side);
-  if (isLiquidatable(s, side, shares, debt)) return priceOf(s.z, side);
-  let lo = -Z_LIMIT + 1;
-  let hi = zs0;
-  const liq = (zs: number) => isLiquidatable({ ...s, z: oriented(zs, side) }, side, shares, debt);
-  if (!liq(lo)) return 0;
-  for (let i = 0; i < 80; i++) {
-    const mid = (lo + hi) / 2;
-    if (liq(mid)) lo = mid;
-    else hi = mid;
-  }
-  return cdf(lo);
+export function liquidationPrice(s: PoolState, _side: Side, shares: number, debt: number): number | null {
+  if (debt <= 0 || shares <= 0) return null;
+  return Math.min(1, debt / (shares * (1 - s.mmBps / BPS)));
 }
 
 export const usdc = (micro: number | bigint) => Number(micro) / 1_000_000;
