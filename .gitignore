@@ -19,3 +19,6 @@ program/target/
 # misc
 .DS_Store
 npm-debug.log*
+
+# test bridge build
+program/tests/svm-bridge/target/
