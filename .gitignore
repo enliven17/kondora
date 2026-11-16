@@ -1,0 +1,21 @@
+# deps
+node_modules/
+
+# next
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+
+# env and secrets
+.env*
+!.env.example
+.keys/
+.vercel/
+
+# anchor
+program/target/
+
+# misc
+.DS_Store
+npm-debug.log*
