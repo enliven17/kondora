@@ -17,7 +17,8 @@ export const SITE_NAV = [
 ] as const;
 
 function isActive(pathname: string, href: string) {
-  if (href === "/docs") return pathname.startsWith("/docs") && pathname !== "/docs/how-it-works";
+  if (href === "/docs")
+    return pathname.startsWith("/docs") && pathname !== "/docs/how-it-works";
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -49,57 +50,86 @@ export function SiteHeader() {
   }, [open]);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-cocoa/10 bg-paper/90 backdrop-blur-md">
-      <div className="page-x mx-auto flex h-16 max-w-page items-center justify-between gap-6">
-        <Link href="/" aria-label="Kondora home" className="flex items-center text-cocoa">
-          <KondoraLockup className="h-[22px]" title="" />
-        </Link>
-
-        <nav aria-label="Main" className="absolute left-1/2 hidden -translate-x-1/2 md:block">
-          <ul className="flex items-center gap-1">
-            {SITE_NAV.map((item) => {
-              const active = isActive(pathname, item.href);
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    aria-current={active ? "page" : undefined}
-                    className={cn(
-                      "rounded-sm px-3 py-2 text-sm transition-colors duration-200",
-                      active ? "font-medium text-cocoa" : "text-mauve hover:text-cocoa",
-                    )}
-                  >
-                    {item.label}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
-
-        <div className="flex items-center gap-2">
-          <ButtonLink href="/markets" variant="dark" arrow className="hidden sm:inline-flex">
-            Launch app
-          </ButtonLink>
-          <button
-            type="button"
-            className="grid size-11 place-items-center rounded text-cocoa hover:bg-blush md:hidden"
-            aria-expanded={open}
-            aria-controls={menuId}
-            aria-label={open ? "Close menu" : "Open menu"}
-            onClick={() => setOpen((v) => !v)}
+    <>
+      <header className="sticky top-0 z-50 border-b border-cocoa/10 bg-paper/90 backdrop-blur-md">
+        <div className="page-x mx-auto flex h-16 max-w-page items-center justify-between gap-6">
+          <Link
+            href="/"
+            aria-label="Kondora home"
+            className="flex items-center text-cocoa"
           >
-            <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
-              {open ? <path d="M6 6l12 12M18 6 6 18" /> : <path d="M4 8h16M4 16h16" />}
-            </svg>
-          </button>
-        </div>
-      </div>
+            <KondoraLockup className="h-[22px]" title="" />
+          </Link>
 
+          <nav
+            aria-label="Main"
+            className="absolute left-1/2 hidden -translate-x-1/2 md:block"
+          >
+            <ul className="flex items-center gap-1">
+              {SITE_NAV.map((item) => {
+                const active = isActive(pathname, item.href);
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      aria-current={active ? "page" : undefined}
+                      className={cn(
+                        "rounded-sm px-3 py-2 text-sm transition-colors duration-200",
+                        active
+                          ? "font-medium text-cocoa"
+                          : "text-mauve hover:text-cocoa",
+                      )}
+                    >
+                      {item.label}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </nav>
+
+          <div className="flex items-center gap-2">
+            <ButtonLink
+              href="/markets"
+              variant="dark"
+              arrow
+              className="hidden sm:inline-flex"
+            >
+              Launch app
+            </ButtonLink>
+            <button
+              type="button"
+              className="grid size-11 place-items-center rounded text-cocoa hover:bg-blush md:hidden"
+              aria-expanded={open}
+              aria-controls={menuId}
+              aria-label={open ? "Close menu" : "Open menu"}
+              onClick={() => setOpen((v) => !v)}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                className="size-5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                aria-hidden
+              >
+                {open ? (
+                  <path d="M6 6l12 12M18 6 6 18" />
+                ) : (
+                  <path d="M4 8h16M4 16h16" />
+                )}
+              </svg>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Outside the header: its backdrop-filter would make it the containing block of this fixed panel and clip it to 64px. */}
       <div
         id={menuId}
         hidden={!open}
-        className="site-menu fixed inset-x-0 bottom-0 top-16 z-40 overflow-y-auto border-t border-cocoa/10 bg-paper md:hidden"
+        className="site-menu fixed inset-x-0 bottom-0 top-16 z-[45] overflow-y-auto border-t border-cocoa/10 bg-paper md:hidden"
       >
         <nav aria-label="Mobile" className="page-x flex flex-col py-4">
           {SITE_NAV.map((item) => (
@@ -112,11 +142,17 @@ export function SiteHeader() {
               {item.label}
             </Link>
           ))}
-          <ButtonLink href="/markets" variant="dark" size="lg" arrow className="mt-6 w-full justify-start">
+          <ButtonLink
+            href="/markets"
+            variant="dark"
+            size="lg"
+            arrow
+            className="mt-6 w-full justify-start"
+          >
             Launch app
           </ButtonLink>
         </nav>
       </div>
-    </header>
+    </>
   );
 }
