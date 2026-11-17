@@ -53,6 +53,8 @@ export function friendlyError(err: unknown): string {
     const known = BY_CODE.get(code);
     if (known) return known;
     if (code === 3012) return "Your trading account is not set up yet. Enable trading first.";
+    // System transfer error 1 inside a delegate or init: the wallet ran out of SOL for rent.
+    if (code === 1) return "Not enough devnet SOL for fees.";
     return `The program rejected this transaction (code ${code}).`;
   }
   const text = err instanceof Error ? err.message : String(err ?? "");

@@ -27,6 +27,9 @@ import type { Side } from "./types";
 
 export const SLIPPAGE_BPS = 100;
 const UNDELEGATE_WAIT_MS = 25_000;
+// Delegating the account again pays about 0.0016 SOL rent plus fees from the wallet.
+const MIN_SOL_LAMPORTS = 3_000_000;
+const LOW_SOL = "Add a little SOL for network fees first (about 0.003 SOL).";
 const BPS = BigInt(amm.BPS);
 
 export interface TradeWallet {
@@ -147,6 +150,7 @@ export async function enableTrading({ wallet, snap, deposit }: EnableParams): Pr
   try {
     const amount = toMicro(Math.max(0, deposit));
     if (amount > snap.usdc) throw new TxFailed("That is more USDC than your wallet holds.");
+    if (snap.lamports < MIN_SOL_LAMPORTS) throw new TxFailed(LOW_SOL);
     let delegated = snap.delegated;
     if (delegated && amount > 0n) {
       steps.push(await undelegate(wallet));
@@ -320,6 +324,7 @@ export async function withdraw({ wallet, snap, amount }: WithdrawParams): Promis
   const micro = toMicro(amount);
   if (micro <= 0n) return { ok: false, error: "Enter an amount above zero." };
   if (micro > balance) return { ok: false, error: "Above your trading balance." };
+  if (snap.lamports < MIN_SOL_LAMPORTS) return { ok: false, error: LOW_SOL };
   const steps: TxLink[] = [];
   try {
     if (snap.delegated) steps.push(await undelegate(wallet));

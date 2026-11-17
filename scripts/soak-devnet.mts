@@ -180,6 +180,12 @@ async function spreadFunds() {
   const need = needy.length * TARGET;
   let free = wallets.reduce((a, _, i) => a + Math.max(0, usdc[i] - (acc[i].balance < 0.3 ? TARGET : 0.2)), 0);
 
+  // SOL first: withdrawing and delegating again pay rent and fees from the wallet.
+  const sols = await conn.getMultipleAccountsInfo(wallets.map((k) => k.publicKey));
+  const lowSol = wallets.filter((_, i) => (sols[i]?.lamports ?? 0) < 0.015 * LAMPORTS_PER_SOL && (usdc[i] >= 0.5 || acc[i].balance >= 0.3 || needy.includes(wallets[i])));
+  for (let i = 0; i < lowSol.length; i += 10) {
+    await baseSend([], lowSol.slice(i, i + 10).map((k) => SystemProgram.transfer({ fromPubkey: admin.publicKey, toPubkey: k.publicKey, lamports: 0.025 * LAMPORTS_PER_SOL })));
+  }
   // Withdraw surplus from the richest debt free accounts until it covers the needy.
   const rich = wallets.map((k, i) => ({ k, i, extra: acc[i].balance - 4 })).filter((x) => x.extra > 1 && !acc[x.i].debt).sort((a, b) => b.extra - a.extra);
   for (const r of rich) {
@@ -189,12 +195,7 @@ async function spreadFunds() {
     if (ok("rotate: withdraw surplus", await trade.withdraw({ wallet: asWallet(r.k), snap: s, amount }), `${short(r.k)} ${amount}`)) free += amount;
   }
 
-  const sols = await conn.getMultipleAccountsInfo(wallets.map((k) => k.publicKey));
   usdc = await atasOf();
-  const lowSol = wallets.filter((_, i) => (sols[i]?.lamports ?? 0) < 0.015 * LAMPORTS_PER_SOL && (usdc[i] >= 0.5 || acc[i].balance >= 0.3 || needy.includes(wallets[i])));
-  for (let i = 0; i < lowSol.length; i += 10) {
-    await baseSend([], lowSol.slice(i, i + 10).map((k) => SystemProgram.transfer({ fromPubkey: admin.publicKey, toPubkey: k.publicKey, lamports: 0.025 * LAMPORTS_PER_SOL })));
-  }
 
   const donors = wallets.map((k, i) => ({ k, spare: usdc[i] - (needy.includes(k) ? TARGET : 0.2) })).filter((d) => d.spare >= TARGET);
   let moved = 0;
