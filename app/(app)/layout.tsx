@@ -10,14 +10,14 @@ import { AppHeader } from "@/components/app/app-header";
 import { StatsRibbon } from "@/components/app/stats-ribbon";
 import { StatusBar } from "@/components/app/status-bar";
 import { getSearchIndex, getStats } from "@/lib/data";
-import { preconnectConvex } from "@/lib/preconnect";
+import { PreconnectConvex } from "@/lib/preconnect";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
-  preconnectConvex();
   const [stats, searchItems] = await Promise.all([getStats(), getSearchIndex()]);
 
   return (
     <AppProviders>
+      <PreconnectConvex />
       <AppBackdrop />
       <AppHeader searchItems={searchItems} />
       <StatsRibbon stats={stats} />

@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { ArtImage } from "@/components/ui/art-image";
 
 import { Reveal } from "./reveal";
 
@@ -33,12 +33,13 @@ export function Features() {
         {FEATURES.map((f) => (
           <article key={f.title} data-reveal className="text-center">
             <div className="overflow-hidden rounded-xl bg-blush">
-              <Image
+              <ArtImage
                 src={f.src}
                 alt={f.alt}
                 width={1200}
                 height={1200}
-                sizes="(min-width: 768px) 33vw, 100vw"
+                widths={[640, 960]}
+                sizes="(min-width: 1152px) 360px, (min-width: 768px) 31vw, 100vw"
                 className="aspect-square w-full object-cover transition-transform duration-700 ease-enter hover:scale-[1.03]"
               />
             </div>

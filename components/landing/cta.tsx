@@ -1,18 +1,18 @@
-import Image from "next/image";
-
+import { ArtImage } from "@/components/ui/art-image";
 import { ButtonLink } from "@/components/ui/button";
 
 export function ClosingCta() {
   return (
     <section aria-labelledby="cta-title" className="px-3 pb-6 sm:px-5 sm:pb-8">
       <div className="relative isolate mx-auto grid min-h-[420px] max-w-[110rem] place-items-center overflow-hidden rounded-2xl bg-plum px-6 py-20 text-center sm:min-h-[520px]">
-        <Image
+        <ArtImage
           src="/art/cta.webp"
           alt=""
-          fill
-          sizes="100vw"
-          quality={75}
-          className="-z-10 object-cover"
+          width={2400}
+          height={1000}
+          widths={[1280, 1600]}
+          sizes="(min-width: 1760px) 1760px, 100vw"
+          className="absolute inset-0 -z-10 size-full object-cover"
         />
         <div aria-hidden className="absolute inset-0 -z-10 bg-ink/45" />
         <div>

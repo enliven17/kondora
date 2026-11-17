@@ -1,18 +1,6 @@
 "use client";
 
-import {
-  AreaSeries,
-  ColorType,
-  createChart,
-  CrosshairMode,
-  HistogramSeries,
-  type IChartApi,
-  type ISeriesApi,
-  LastPriceAnimationMode,
-  LineType,
-  type MouseEventParams,
-  type UTCTimestamp,
-} from "lightweight-charts";
+import type { IChartApi, ISeriesApi, MouseEventParams, UTCTimestamp } from "lightweight-charts";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Panel } from "@/components/ui/panel";
@@ -20,6 +8,8 @@ import { formatCents, formatDateTime, formatSignedPts, formatUsdCompact } from "
 import { subscribePrice } from "@/lib/live";
 import type { PricePoint, Side } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+type ChartLib = typeof import("lightweight-charts");
 
 type Range = "1h" | "6h" | "1d" | "1w" | "all";
 const RANGES: Array<{ value: Range; label: string; secs: number }> = [
@@ -68,6 +58,7 @@ export function PriceChart({ marketId, history, live = true, className }: PriceC
   const [hover, setHover] = useState<Hover | null>(null);
   const [flash, setFlash] = useState<"up" | "down" | null>(null);
   const [width, setWidth] = useState(0);
+  const [lib, setLib] = useState<ChartLib | null>(null);
 
   const host = useRef<HTMLDivElement>(null);
   const chart = useRef<IChartApi | null>(null);
@@ -84,10 +75,21 @@ export function PriceChart({ marketId, history, live = true, className }: PriceC
     return toSide(slice.length >= 2 ? slice : points.slice(-2), side);
   }, [points, range, side]);
 
-  // Create the chart once.
+  // lightweight-charts (~45KB gz) loads after hydration, off the critical path. The host has a
+  // fixed height, so nothing shifts when the canvas paints.
+  useEffect(() => {
+    let alive = true;
+    void import("lightweight-charts").then((m) => alive && setLib(m));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Create the chart once the library is in.
   useEffect(() => {
     const el = host.current;
-    if (!el) return;
+    if (!el || !lib) return;
+    const { AreaSeries, ColorType, createChart, CrosshairMode, HistogramSeries, LastPriceAnimationMode, LineType } = lib;
     const c = createChart(el, {
       autoSize: true,
       layout: {
@@ -152,7 +154,7 @@ export function PriceChart({ marketId, history, live = true, className }: PriceC
       area.current = null;
       volume.current = null;
     };
-  }, []);
+  }, [lib]);
 
   // Push data on range, side or tick changes.
   useEffect(() => {
@@ -177,7 +179,7 @@ export function PriceChart({ marketId, history, live = true, className }: PriceC
       })),
     );
     chart.current?.timeScale().fitContent();
-  }, [visible, side]);
+  }, [visible, side, lib]);
 
   // Live ticks.
   useEffect(() => {

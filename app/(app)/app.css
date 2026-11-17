@@ -24,7 +24,7 @@
   position: absolute;
   inset: -4%;
   background-image:
-    url("/art/app-bg.webp"),
+    url("/art/app-bg-960.webp"), /* blurred 18px: a 960px source is indistinguishable */
     radial-gradient(60% 50% at 18% 22%, rgb(var(--petal) / 0.75) 0%, transparent 70%),
     radial-gradient(45% 45% at 82% 30%, rgb(var(--blush) / 0.6) 0%, transparent 70%),
     radial-gradient(70% 60% at 60% 95%, rgb(var(--petal-hot) / 0.45) 0%, transparent 70%),
@@ -43,6 +43,19 @@
 }
 
 /* -------------------------------------------------------------- Petals */
+
+/*
+ * Petals fall over the page, not behind it: the backdrop is covered by opaque panels almost everywhere.
+ * z 15 clears in-panel layers (z-10) and stays under the bet confirmation (20), mobile bet bar (30),
+ * header and status bar (40), menus and search (50) and the wallet modal.
+ */
+.petal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 15;
+  overflow: hidden;
+  pointer-events: none;
+}
 
 .petal {
   position: absolute;
@@ -63,6 +76,11 @@
   /* CSS leaf until the petal renders exist. */
   border-radius: 80% 0 80% 0;
   background: linear-gradient(135deg, rgb(var(--petal)) 0%, rgb(var(--petal-hot) / 0.85) 100%);
+}
+
+.petal-field[data-paused] .petal,
+.petal-field[data-paused] .petal > span {
+  animation-play-state: paused;
 }
 
 .petal-field[data-art="png"] .petal > span {
@@ -204,4 +222,42 @@
 .lev-slider:disabled {
   cursor: not-allowed;
   opacity: 0.5;
+}
+
+/* ------------------------------------------------------------- Wallet */
+
+/* Wallet adapter modal, restyled to Kondora tokens */
+.wallet-adapter-modal-wrapper {
+  background: rgb(var(--panel)) !important;
+  border: 1px solid rgb(var(--line) / 0.1);
+  border-radius: 6px !important;
+  box-shadow: 0 24px 80px rgb(0 0 0 / 0.6) !important;
+  font-family: var(--font-sans), system-ui, sans-serif !important;
+}
+.wallet-adapter-modal-title {
+  font-family: var(--font-sans), system-ui, sans-serif !important;
+  font-weight: 600 !important;
+  font-size: 28px !important;
+  color: rgb(var(--fg)) !important;
+}
+.wallet-adapter-modal-overlay {
+  background: rgb(var(--ink) / 0.8) !important;
+  backdrop-filter: blur(6px);
+}
+.wallet-adapter-modal-button-close {
+  border-radius: 4px !important;
+  background: rgb(var(--cocoa)) !important;
+}
+.wallet-adapter-modal-list .wallet-adapter-button {
+  border-radius: 4px !important;
+  font-family: var(--font-sans), system-ui, sans-serif !important;
+  font-weight: 500 !important;
+}
+.wallet-adapter-modal-list .wallet-adapter-button:not([disabled]):hover {
+  background: rgb(var(--cocoa)) !important;
+}
+.wallet-adapter-modal-list-more {
+  font-family: var(--font-mono), monospace !important;
+  font-size: 12px !important;
+  color: rgb(var(--muted)) !important;
 }

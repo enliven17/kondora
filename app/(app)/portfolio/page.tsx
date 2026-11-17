@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { PortfolioView } from "@/components/portfolio/portfolio-view";
 import { unixNow } from "@/lib/clock";
 import { getDemoPositions, getMarkets, toListItem } from "@/lib/data";
+import { PreconnectChain } from "@/lib/preconnect";
 
 export const metadata: Metadata = {
   title: "Portfolio",
@@ -17,6 +18,7 @@ export default async function PortfolioPage() {
 
   return (
     <div className="mx-auto max-w-6xl">
+      <PreconnectChain />
       <PortfolioView markets={markets.map(toListItem)} demoPositions={demoPositions} serverNow={unixNow()} />
     </div>
   );

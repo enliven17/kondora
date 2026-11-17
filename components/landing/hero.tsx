@@ -43,7 +43,6 @@ export function Hero() {
             {/* Before this, getImageProps with the optimizer off gave the mobile source no srcSet,
                 so phones downloaded the 190KB desktop art as their LCP image. */}
             <source media="(max-width: 767px)" srcSet={MOBILE_SRCSET} sizes="100vw" width={1080} height={1500} />
-            {/* eslint-disable-next-line @next/next/no-img-element -- LCP art, optimizer is off on purpose */}
             <img
               src="/art/hero.webp"
               srcSet={DESKTOP_SRCSET}

@@ -1,5 +1,30 @@
 import type { NextConfig } from "next";
 
+// Content Security Policy: only the services Kondora talks to.
+// script-src keeps 'unsafe-inline' because Next.js inlines its bootstrap scripts.
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "img-src 'self' data: blob: https:",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  [
+    "connect-src 'self'",
+    "https://*.convex.cloud wss://*.convex.cloud https://*.convex.site",
+    "https://api.devnet.solana.com wss://api.devnet.solana.com",
+    "https://devnet.helius-rpc.com wss://devnet.helius-rpc.com",
+    "https://*.magicblock.app wss://*.magicblock.app",
+    "https://*.solflare.com wss://*.solflare.com",
+  ].join(" "),
+  "frame-src https://*.solflare.com",
+  "worker-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+  "upgrade-insecure-requests",
+].join("; ");
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   turbopack: { root: process.cwd() },
@@ -14,6 +39,8 @@ const nextConfig: NextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "X-Frame-Options", value: "DENY" },
+          { key: "Content-Security-Policy", value: CSP },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
         ],
       },
     ];

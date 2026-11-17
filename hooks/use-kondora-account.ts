@@ -4,8 +4,9 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import type { PublicKey } from "@solana/web3.js";
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 
-import { type AccountSnapshot, readAccount } from "@/lib/account";
+import type { AccountSnapshot } from "@/lib/account";
 import type { TradeWallet } from "@/lib/trade";
+import { preloadTrading, readAccount } from "@/lib/trade-lazy";
 
 const POLL_MS = 12_000;
 
@@ -64,8 +65,10 @@ export function useKondoraAccount() {
       const store = storeFor(key);
       store.listeners.add(onChange);
       if (store.listeners.size === 1) {
+        preloadTrading(); // a wallet is connected: trading is likely, warm the builders
         void refresh(publicKey);
-        store.timer = window.setInterval(() => void refresh(publicKey), POLL_MS);
+        // Skip ticks while the tab is hidden; the visibilitychange handler below refreshes on return.
+        store.timer = window.setInterval(() => document.visibilityState === "visible" && void refresh(publicKey), POLL_MS);
       }
       return () => {
         store.listeners.delete(onChange);

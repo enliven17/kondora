@@ -82,6 +82,11 @@ function start(id: bigint, entry: Entry): () => void {
 
   const poll = async () => {
     if (stopped) return;
+    // Hidden tab: no RPC reads, just check again next interval.
+    if (document.visibilityState === "hidden") {
+      timer = window.setTimeout(poll, POLL_MS);
+      return;
+    }
     try {
       const info = await base.getAccountInfo(pk, "confirmed");
       if (stopped || !info) return;

@@ -19,7 +19,8 @@ import { formatLeverage, formatTimeAgo, formatUsd, formatUsdSigned } from "@/lib
 import { activePositions, amm, OUTCOME, type PositionData, STATE } from "@/lib/kondora";
 import { valuePosition } from "@/lib/leverage";
 import type { LiveMarket } from "@/lib/live";
-import { claimPosition, closePosition, type TradeResult, type TxLink as TxLinkData } from "@/lib/trade";
+import type { TradeResult, TxLink as TxLinkData } from "@/lib/trade";
+import { claimPosition, closePosition } from "@/lib/trade-lazy";
 import type { Market, Position } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { type HistoryItem, toListItem } from "@/lib/views";

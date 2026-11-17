@@ -6,6 +6,11 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { cn } from "@/lib/utils";
 
+import { loadWallet } from "./wallet-loader";
+
+/** Warm the wallet chunk the moment a click looks likely; the click itself opens the modal. */
+const warmWallet = () => void loadWallet().catch(() => undefined);
+
 const noopSubscribe = () => () => {};
 
 function shorten(address: string) {
@@ -65,7 +70,14 @@ export function WalletButton({ className, tone = "plum", label = "Connect wallet
   if (!mounted || !publicKey) {
     const busy = mounted && connecting;
     return (
-      <button type="button" className={cn(base, tones[tone], className)} onClick={() => setVisible(true)} disabled={busy}>
+      <button
+        type="button"
+        className={cn(base, tones[tone], className)}
+        onPointerEnter={warmWallet}
+        onFocus={warmWallet}
+        onClick={() => setVisible(true)}
+        disabled={busy}
+      >
         <WalletIcon />
         {busy ? (
           "Connecting"

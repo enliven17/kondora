@@ -7,17 +7,17 @@ import Script from "next/script";
 import type { ReactNode } from "react";
 
 import { Splash, SPLASH_GATE_SCRIPT } from "@/components/site/splash";
-import { Providers } from "./providers";
 
+// Upright only: no UI or docs text is italic, and every src here is preloaded on every page
+// (the italic file was 43KB of preload nothing used). Satoshi-VariableItalic.woff2 stays in
+// app/fonts if italics are ever designed in.
 const sans = localFont({
-  src: [
-    { path: "./fonts/Satoshi-Variable.woff2", style: "normal", weight: "300 900" },
-    { path: "./fonts/Satoshi-VariableItalic.woff2", style: "italic", weight: "300 900" },
-  ],
+  src: [{ path: "./fonts/Satoshi-Variable.woff2", style: "normal", weight: "300 900" }],
   variable: "--font-sans",
   display: "swap",
 });
-const mono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono", display: "swap" });
+// Mono is only for addresses and hashes (brand/DESIGN.md), never above the fold: load on use, don't preload.
+const mono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono", display: "swap", preload: false });
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://kondora.xyz"),
@@ -57,10 +57,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         >
           Skip to content
         </a>
-        <Providers>
-          <Splash />
-          {children}
-        </Providers>
+        {/* No global providers: wallet and Convex mount in the (app) layout, motion and GSAP where used. */}
+        <Splash />
+        {children}
       </body>
     </html>
   );

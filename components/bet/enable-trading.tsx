@@ -7,7 +7,8 @@ import { useFeedback } from "@/hooks/use-feedback";
 import type { AccountSnapshot } from "@/lib/account";
 import { formatNumber } from "@/lib/format";
 import { amm } from "@/lib/kondora";
-import { enableTrading, type TradeWallet, type TxLink as TxLinkData } from "@/lib/trade";
+import type { TradeWallet, TxLink as TxLinkData } from "@/lib/trade";
+import { enableTrading } from "@/lib/trade-lazy";
 import { cn } from "@/lib/utils";
 import { TxLink } from "./tx-link";
 

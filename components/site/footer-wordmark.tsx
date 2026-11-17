@@ -1,16 +1,15 @@
 "use client";
 
-import { useGSAP } from "@gsap/react";
-import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { useId, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 
 import { WORDMARK_GLYPHS, WORDMARK_HEIGHT, WORDMARK_WIDTH } from "@/components/brand/logo-paths";
 
-gsap.registerPlugin(ScrollTrigger, useGSAP);
-
 const STRIPES = 9;
 const D = WORDMARK_GLYPHS.join(" ");
+const FROM = 0.6;
+const TO = 2.6;
+/** Seconds for the spread to settle behind the scroll position (the old GSAP scrub: 0.6). */
+const SCRUB = 0.6;
 
 /**
  * Giant outlined "kondora": the glyph outline plus stacked copies clipped to the letters,
@@ -20,26 +19,56 @@ export function FooterWordmark() {
   const ref = useRef<SVGSVGElement>(null);
   const clip = useId().replace(/:/g, "");
 
-  useGSAP(
-    () => {
-      const el = ref.current;
-      if (!el) return;
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        el.style.setProperty("--spread", "2.4");
-        return;
-      }
-      gsap.fromTo(
-        el,
-        { "--spread": 0.6 },
-        {
-          "--spread": 2.6,
-          ease: "none",
-          scrollTrigger: { trigger: el, start: "top bottom", end: "bottom bottom", scrub: 0.6 },
-        },
-      );
-    },
-    { scope: ref },
-  );
+  // Scroll-scrubbed spread without GSAP: the rAF loop only runs while the footer is on screen,
+  // and only writes a CSS variable (the stripes move with transform).
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      el.style.setProperty("--spread", "2.4");
+      return;
+    }
+
+    let frame = 0;
+    let last = 0;
+    let value = FROM;
+    let written = "";
+    const write = () => {
+      const next = value.toFixed(3);
+      if (next === written) return; // settled: no style recalc while the page sits still
+      written = next;
+      el.style.setProperty("--spread", next);
+    };
+    // Progress from the wordmark's top meeting the viewport bottom to its bottom meeting it.
+    const target = () => {
+      const r = el.getBoundingClientRect();
+      const p = r.height > 0 ? (window.innerHeight - r.top) / r.height : 0;
+      return FROM + (TO - FROM) * Math.min(1, Math.max(0, p));
+    };
+    const tick = (now: number) => {
+      const dt = last ? Math.min(0.1, (now - last) / 1000) : 1;
+      last = now;
+      const goal = target();
+      value += (goal - value) * Math.min(1, (dt * 4) / SCRUB);
+      if (Math.abs(goal - value) < 0.001) value = goal;
+      write();
+      frame = requestAnimationFrame(tick);
+    };
+
+    value = target();
+    write();
+    const io = new IntersectionObserver(([entry]) => {
+      cancelAnimationFrame(frame);
+      frame = 0;
+      last = 0;
+      if (entry?.isIntersecting) frame = requestAnimationFrame(tick);
+    });
+    io.observe(el);
+    return () => {
+      io.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  }, []);
 
   return (
     <svg

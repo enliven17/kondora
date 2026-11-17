@@ -9,7 +9,8 @@ import { Panel, PanelHeader } from "@/components/ui/panel";
 import type { AccountSnapshot } from "@/lib/account";
 import { formatNumber } from "@/lib/format";
 import { amm } from "@/lib/kondora";
-import { enableTrading, type TradeResult, type TradeWallet, type TxLink as TxLinkData, withdraw } from "@/lib/trade";
+import type { TradeResult, TradeWallet, TxLink as TxLinkData } from "@/lib/trade";
+import { enableTrading, withdraw } from "@/lib/trade-lazy";
 import { cn } from "@/lib/utils";
 
 type Busy = "deposit" | "withdraw" | null;

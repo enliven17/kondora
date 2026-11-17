@@ -10,7 +10,7 @@ import { PriceChart } from "@/components/markets/price-chart";
 import { PriceImpact } from "@/components/markets/price-impact";
 import { unixNow } from "@/lib/clock";
 import { getMarket, getMarketActivity, getRelatedMarkets, toListItem } from "@/lib/data";
-import { preconnectChain } from "@/lib/preconnect";
+import { PreconnectChain } from "@/lib/preconnect";
 import type { Side } from "@/lib/types";
 
 export const revalidate = 60;
@@ -31,7 +31,6 @@ function parseAmount(value: string | string[] | undefined) {
 }
 
 export default async function MarketPage({ params, searchParams }: PageProps<"/markets/[id]">) {
-  preconnectChain(); // the bet panel and chart read live market state right after hydration
   const [{ id }, query] = await Promise.all([params, searchParams]);
   const market = await getMarket(id);
   if (!market) notFound();
@@ -44,6 +43,8 @@ export default async function MarketPage({ params, searchParams }: PageProps<"/m
 
   return (
     <div className="grid grid-cols-1 gap-4 pb-20 lg:grid-cols-[minmax(0,1fr)_24rem] lg:pb-0">
+      {/* Hoisted to <head>: the bet panel and chart read live chain state right after hydration. */}
+      <PreconnectChain />
       <div className="min-w-0 space-y-4 lg:col-start-1 lg:row-start-1">
         <MarketHeader market={market} serverNow={serverNow} />
         <PriceChart marketId={market.id} history={market.history} live={open} />
