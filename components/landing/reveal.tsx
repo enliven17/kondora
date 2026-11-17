@@ -1,32 +1,39 @@
 "use client";
 
-import { motion } from "motion/react";
-import type { ReactNode } from "react";
+import { useGSAP } from "@gsap/react";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { type ReactNode, useRef } from "react";
 
-const TAGS = { div: motion.div, li: motion.li, section: motion.section } as const;
+gsap.registerPlugin(ScrollTrigger, useGSAP);
 
-/** Fade-up on first view. Under reduced motion MotionConfig drops the movement and keeps the fade. */
-export function Reveal({
-  children,
-  as = "div",
-  delay = 0,
-  className,
-}: {
-  children: ReactNode;
-  as?: keyof typeof TAGS;
-  delay?: number;
-  className?: string;
-}) {
-  const Tag = TAGS[as];
+/**
+ * Fade and lift children marked `data-reveal` as they enter the viewport.
+ * Content renders visible on the server; GSAP only animates when motion is allowed.
+ */
+export function Reveal({ children, className, stagger = 0.08 }: { children: ReactNode; className?: string; stagger?: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useGSAP(
+    () => {
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      const items = gsap.utils.toArray<HTMLElement>("[data-reveal]", ref.current);
+      const targets = items.length ? items : [ref.current];
+      gsap.from(targets, {
+        y: 28,
+        opacity: 0,
+        duration: 0.9,
+        ease: "power3.out",
+        stagger,
+        scrollTrigger: { trigger: ref.current, start: "top 85%", once: true },
+      });
+    },
+    { scope: ref },
+  );
+
   return (
-    <Tag
-      className={className}
-      initial={{ opacity: 0, y: 24 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "0px 0px -10% 0px" }}
-      transition={{ duration: 0.8, delay, ease: [0.23, 1, 0.32, 1] }}
-    >
+    <div ref={ref} className={className}>
       {children}
-    </Tag>
+    </div>
   );
 }

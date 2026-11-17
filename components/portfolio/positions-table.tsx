@@ -1,212 +1,170 @@
 "use client";
 
-import { useWallet } from "@solana/wallet-adapter-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
 
-import { WalletButton } from "@/components/site/wallet-button";
-import { formatCents, formatLeverage, formatNumber, formatPct, formatUsd } from "@/lib/format";
-import { valuePosition } from "@/lib/leverage";
-import { closePosition } from "@/lib/trade";
+import { CategoryThumb } from "@/components/app/category-thumb";
+import { formatCents, formatLeverage, formatNumber, formatPct, formatUsd, formatUsdSigned } from "@/lib/format";
+import type { PositionView } from "@/lib/leverage";
 import type { Market, Position } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-interface Row {
+export interface PositionRow {
   key: string;
   position: Position;
   market: Market;
-  view: ReturnType<typeof valuePosition>;
+  view: PositionView;
+  /** USDC claimable when the market has settled, else null. */
+  claimable: number | null;
 }
 
-function HealthBar({ health }: { health: number }) {
+/** Health from liquidation (0) to safe (1): a down-to-up gradient revealed up to the current health. */
+export function HealthBar({ health, leveraged }: { health: number; leveraged: boolean }) {
   const pct = Math.round(health * 100);
-  const color = health > 0.5 ? "bg-yes" : health > 0.2 ? "bg-gold" : "bg-no";
+  if (!leveraged) return <span className="text-xs text-haze">No liquidation</span>;
   return (
     <div className="flex items-center gap-2">
       <div
         role="meter"
-        aria-label="Position health"
+        aria-label="Distance to liquidation"
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={pct}
-        className="h-1.5 w-20 overflow-hidden rounded-xs bg-night-700"
+        className="relative h-1.5 w-20 overflow-hidden rounded-xs bg-fg/10"
       >
-        <div className={cn("h-full", color)} style={{ width: `${pct}%` }} />
+        <div
+          className="absolute inset-y-0 left-0 bg-gradient-to-r from-down via-acc to-up"
+          style={{ width: "5rem", clipPath: `inset(0 ${100 - pct}% 0 0)` }}
+        />
       </div>
-      <span className="font-mono text-xs text-marble-400 tabular">{pct}%</span>
+      <span className={cn("num text-xs", health < 0.25 ? "text-down" : "text-muted")}>{pct}%</span>
     </div>
   );
 }
 
-export function PositionsTable({ positions, markets }: { positions: Position[]; markets: Market[] }) {
-  const { publicKey } = useWallet();
-  const [closing, setClosing] = useState<string | null>(null);
-  const [closed, setClosed] = useState<Set<string>>(() => new Set());
-  const [message, setMessage] = useState<string | null>(null);
-
-  const rows = useMemo<Row[]>(
-    () =>
-      positions.flatMap((position) => {
-        const market = markets.find((m) => m.id === position.marketId);
-        if (!market) return [];
-        const key = `${position.marketId}:${position.side}`;
-        return [{ key, position, market, view: valuePosition(position, market) }];
-      }),
-    [positions, markets],
-  );
-
-  const live = rows.filter((r) => !closed.has(r.key));
-  const totals = live.reduce(
-    (acc, r) => ({ margin: acc.margin + r.position.margin, equity: acc.equity + r.view.equity, pnl: acc.pnl + r.view.pnl }),
-    { margin: 0, equity: 0, pnl: 0 },
-  );
-
-  const onClose = async (row: Row) => {
-    setClosing(row.key);
-    setMessage(null);
-    const result = await closePosition({
-      marketId: row.position.marketId,
-      side: row.position.side,
-      fractionBps: 10_000,
-      minOut: Math.max(0, row.view.value * 0.99),
-      owner: publicKey?.toBase58(),
-    });
-    setClosing(null);
-    if (result.ok) {
-      setClosed((prev) => new Set(prev).add(row.key));
-      setMessage(`Closed ${row.position.side.toUpperCase()} on "${row.market.question}" for ${formatUsd(Math.max(0, row.view.equity))}.`);
-    } else {
-      setMessage(result.error);
-    }
-  };
-
+function SideTag({ position }: { position: Position }) {
+  const yes = position.side === "yes";
   return (
-    <div>
-      {!publicKey && (
-        <div className="mb-8 flex flex-col gap-4 rounded-md border border-line bg-night-900 p-5 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-marble-200">
-            You are viewing demo positions. Connect a wallet to see your own on devnet.
-          </p>
-          <WalletButton variant="dark" size="md" />
-        </div>
-      )}
+    <span className={cn("num inline-flex h-5 items-center rounded-xs px-1.5 text-[11px] font-semibold", yes ? "bg-up/15 text-up" : "bg-down/15 text-down")}>
+      {formatLeverage(position.leverage)} {yes ? "Yes" : "No"}
+    </span>
+  );
+}
 
-      <dl className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <Summary label="Open positions" value={String(live.length)} />
-        <Summary label="Margin" value={formatUsd(totals.margin)} />
-        <Summary label="Equity" value={formatUsd(totals.equity)} />
-        <Summary label="Unrealized PnL" value={formatUsd(totals.pnl)} tone={totals.pnl >= 0 ? "text-yes" : "text-no"} />
-      </dl>
+function Action({ row, busy, onClose, onClaim }: { row: PositionRow; busy: boolean; onClose: () => void; onClaim: () => void }) {
+  const base = "h-9 rounded-sm px-3 text-xs font-bold transition-[background-color,transform] active:scale-95 disabled:opacity-50";
+  if (row.claimable !== null) {
+    return row.claimable > 0 ? (
+      <button type="button" onClick={onClaim} disabled={busy} className={cn(base, "bg-acc text-acc-ink hover:bg-acc-hover")}>
+        {busy ? "Claiming" : `Claim ${formatUsd(row.claimable)}`}
+      </button>
+    ) : (
+      <span className="text-xs text-haze">Settled, nothing to claim</span>
+    );
+  }
+  return (
+    <button type="button" onClick={onClose} disabled={busy} className={cn(base, "bg-fg/10 text-fg hover:bg-fg/15")}>
+      {busy ? "Closing" : "Close"}
+    </button>
+  );
+}
 
-      <p aria-live="polite" className={cn("mb-4 text-sm text-marble-200", !message && "sr-only")}>
-        {message}
-      </p>
-
-      {live.length === 0 ? (
-        <div className="rounded-md border border-line p-10 text-center">
-          <p className="text-xl font-semibold text-marble-50">No open positions.</p>
-          <Link href="/markets" className="mt-3 inline-block text-sm text-marble-200 underline-offset-4 hover:underline">
-            Browse markets
-          </Link>
-        </div>
-      ) : (
-        <>
-          {/* Cards on small screens */}
-          <ul className="space-y-3 md:hidden">
-            {live.map((r) => (
-              <li key={r.key} className="rounded-md border border-line bg-night-900 p-4">
-                <Link href={`/markets/${r.market.id}`} className="text-sm font-medium text-marble-50">
+export function PositionsTable({
+  rows,
+  busyKey,
+  onClose,
+  onClaim,
+}: {
+  rows: PositionRow[];
+  busyKey: string | null;
+  onClose: (row: PositionRow) => void;
+  onClaim: (row: PositionRow) => void;
+}) {
+  return (
+    <>
+      {/* Cards below md */}
+      <ul className="divide-y divide-line/[0.07] md:hidden">
+        {rows.map((r) => (
+          <li key={r.key} className="p-4">
+            <div className="flex gap-3">
+              <CategoryThumb category={r.market.category} className="size-10" />
+              <div className="min-w-0 flex-1">
+                <Link href={`/markets/${r.market.id}`} className="line-clamp-2 text-sm font-semibold text-fg">
                   {r.market.question}
                 </Link>
-                <div className="mt-2 flex items-center gap-3 font-mono text-xs">
-                  <span className={r.position.side === "yes" ? "text-yes" : "text-no"}>{r.position.side.toUpperCase()}</span>
-                  <span className="text-marble-400">{formatLeverage(r.position.leverage)}</span>
-                  <span className="text-marble-400">
+                <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
+                  <SideTag position={r.position} />
+                  <span className="num text-muted">
                     {formatCents(r.position.entryPrice)} to {formatCents(r.view.mark)}
                   </span>
                 </div>
-                <div className="mt-3 flex items-center justify-between">
-                  <HealthBar health={r.view.health} />
-                  <span className={cn("font-mono text-sm tabular", r.view.pnl >= 0 ? "text-yes" : "text-no")}>
-                    {formatUsd(r.view.pnl)}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => onClose(r)}
-                  disabled={closing === r.key}
-                  className="mt-4 h-10 w-full rounded-sm border border-line text-sm text-marble-50 hover:border-marble-400 disabled:opacity-50"
-                >
-                  {closing === r.key ? "Closing" : "Close position"}
-                </button>
-              </li>
-            ))}
-          </ul>
+              </div>
+            </div>
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <HealthBar health={r.view.health} leveraged={r.view.liqPrice !== null} />
+              <span className={cn("num text-sm", r.view.pnl >= 0 ? "text-up" : "text-down")}>
+                {formatUsdSigned(r.view.pnl)} <span className="text-haze">{formatPct(r.view.pnlPct, true)}</span>
+              </span>
+            </div>
+            <div className="mt-3 flex justify-end">
+              <Action row={r} busy={busyKey === r.key} onClose={() => onClose(r)} onClaim={() => onClaim(r)} />
+            </div>
+          </li>
+        ))}
+      </ul>
 
-          {/* Table on md and up */}
-          <div className="relative hidden overflow-x-auto rounded-md border border-line md:block">
-            <table className="w-full text-sm">
-              <caption className="sr-only">Open positions</caption>
-              <thead>
-                <tr className="border-b border-line text-left">
-                  {["Market", "Side", "Size", "Entry", "Mark", "Liq.", "Health", "PnL", ""].map((h, i) => (
-                    <th key={h || i} scope="col" className={cn("micro px-4 py-3 font-normal", i >= 2 && i !== 6 && "text-right")}>
-                      {h || <span className="sr-only">Actions</span>}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line/60">
-                {live.map((r) => (
-                  <tr key={r.key}>
-                    <td className="max-w-xs px-4 py-3">
-                      <Link href={`/markets/${r.market.id}`} className="text-marble-50 hover:text-gold">
+      {/* Table from md */}
+      <div className="thin-scrollbar hidden overflow-x-auto md:block">
+        <table className="w-full min-w-[52rem] text-sm">
+          <caption className="sr-only">Open positions</caption>
+          <thead>
+            <tr className="border-b border-line/10 text-left text-xs text-haze">
+              <th scope="col" className="px-5 py-2.5 font-medium">Market</th>
+              <th scope="col" className="px-3 py-2.5 text-right font-medium">Shares</th>
+              <th scope="col" className="px-3 py-2.5 text-right font-medium">Entry</th>
+              <th scope="col" className="px-3 py-2.5 text-right font-medium">Mark</th>
+              <th scope="col" className="px-3 py-2.5 text-right font-medium">Liq. price</th>
+              <th scope="col" className="px-3 py-2.5 font-medium">Health</th>
+              <th scope="col" className="px-3 py-2.5 text-right font-medium">PnL</th>
+              <th scope="col" className="px-5 py-2.5">
+                <span className="sr-only">Actions</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line/[0.07]">
+            {rows.map((r) => (
+              <tr key={r.key} className="transition-colors hover:bg-fg/[0.03]">
+                <td className="max-w-sm px-5 py-3">
+                  <div className="flex items-center gap-3">
+                    <CategoryThumb category={r.market.category} className="size-10" />
+                    <div className="min-w-0">
+                      <Link href={`/markets/${r.market.id}`} className="line-clamp-1 font-semibold text-fg hover:underline">
                         {r.market.question}
                       </Link>
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs">
-                      <span className={r.position.side === "yes" ? "text-yes" : "text-no"}>{r.position.side.toUpperCase()}</span>{" "}
-                      <span className="text-marble-400">{formatLeverage(r.position.leverage)}</span>
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono text-xs text-marble-200 tabular">{formatNumber(r.position.shares)}</td>
-                    <td className="px-4 py-3 text-right font-mono text-xs text-marble-200 tabular">{formatCents(r.position.entryPrice)}</td>
-                    <td className="px-4 py-3 text-right font-mono text-xs text-marble-50 tabular">{formatCents(r.view.mark)}</td>
-                    <td className="px-4 py-3 text-right font-mono text-xs text-gold tabular">
-                      {r.position.leverage > 1 ? formatCents(r.view.liqPrice) : "None"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <HealthBar health={r.view.health} />
-                    </td>
-                    <td className={cn("px-4 py-3 text-right font-mono text-xs tabular", r.view.pnl >= 0 ? "text-yes" : "text-no")}>
-                      {formatUsd(r.view.pnl)}
-                      <span className="block text-marble-400">{formatPct(r.view.pnlPct, true)}</span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => onClose(r)}
-                        disabled={closing === r.key}
-                        className="rounded-sm border border-line px-3 py-1.5 text-xs text-marble-50 hover:border-marble-400 disabled:opacity-50"
-                      >
-                        {closing === r.key ? "Closing" : "Close"}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-function Summary({ label, value, tone }: { label: string; value: string; tone?: string }) {
-  return (
-    <div className="rounded-md border border-line p-4">
-      <dt className="micro">{label}</dt>
-      <dd className={cn("mt-1 num text-2xl tabular", tone ?? "text-marble-50")}>{value}</dd>
-    </div>
+                      <div className="mt-1">
+                        <SideTag position={r.position} />
+                      </div>
+                    </div>
+                  </div>
+                </td>
+                <td className="num px-3 py-3 text-right text-fg/85">{formatNumber(r.position.shares)}</td>
+                <td className="num px-3 py-3 text-right text-fg/85">{formatCents(r.position.entryPrice)}</td>
+                <td className="num px-3 py-3 text-right text-fg">{formatCents(r.view.mark)}</td>
+                <td className="num px-3 py-3 text-right text-acc">{r.view.liqPrice === null ? <span className="text-haze">None</span> : formatCents(r.view.liqPrice)}</td>
+                <td className="px-3 py-3">
+                  <HealthBar health={r.view.health} leveraged={r.view.liqPrice !== null} />
+                </td>
+                <td className={cn("num px-3 py-3 text-right", r.view.pnl >= 0 ? "text-up" : "text-down")}>
+                  {formatUsdSigned(r.view.pnl)}
+                  <span className="block text-xs text-haze">{formatPct(r.view.pnlPct, true)}</span>
+                </td>
+                <td className="px-5 py-3 text-right">
+                  <Action row={r} busy={busyKey === r.key} onClose={() => onClose(r)} onClaim={() => onClaim(r)} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }

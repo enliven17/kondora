@@ -1,0 +1,34 @@
+/* First-visit splash. Pure CSS timeline, under 1.2s. */
+.splash {
+  animation: splash-out 0.3s cubic-bezier(0.4, 0, 1, 1) 0.85s forwards;
+}
+.splash-top,
+.splash-bottom {
+  transform-box: view-box;
+}
+.splash-top {
+  animation: splash-top 0.75s cubic-bezier(0.65, 0, 0.35, 1) both;
+}
+.splash-bottom {
+  animation: splash-bottom 0.75s cubic-bezier(0.65, 0, 0.35, 1) both;
+}
+.splash-word {
+  animation: splash-word 0.4s cubic-bezier(0.23, 1, 0.32, 1) 0.42s both;
+}
+@keyframes splash-top {
+  0% { transform: translate(14px, -5px); opacity: 0; }
+  45% { transform: translate(-5px, 3px); opacity: 1; }
+  100% { transform: translate(0, 0); opacity: 1; }
+}
+@keyframes splash-bottom {
+  0% { transform: translate(-14px, 5px); opacity: 0; }
+  45% { transform: translate(5px, -3px); opacity: 1; }
+  100% { transform: translate(0, 0); opacity: 1; }
+}
+@keyframes splash-word {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes splash-out {
+  to { opacity: 0; visibility: hidden; }
+}

@@ -67,3 +67,33 @@ export function formatDateTime(unix: number) {
 export function shortHash(hash: string, size = 4) {
   return hash.length <= size * 2 + 3 ? hash : `${hash.slice(0, size + 2)}...${hash.slice(-size)}`;
 }
+
+const usdWhole = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+
+/** Whole dollars with grouping, e.g. 58045327 -> "$58,045,327". */
+export const formatUsdWhole = (v: number) => usdWhole.format(v);
+
+/** Signed dollars, e.g. "+$52.13" or "-$4.30". */
+export function formatUsdSigned(v: number) {
+  const s = usd.format(Math.abs(v));
+  if (v > 0.004) return `+${s}`;
+  if (v < -0.004) return `-${s}`;
+  return s;
+}
+
+/** Probability as a whole percent, e.g. 0.624 -> "62%". */
+export function formatChance(p: number) {
+  const c = p * 100;
+  if (c > 0 && c < 1) return "<1%";
+  if (c < 100 && c > 99) return ">99%";
+  return `${Math.round(c)}%`;
+}
+
+/** Compact relative time, e.g. "4m", "2h", "3d". */
+export function formatTimeAgo(unix: number, now = Date.now() / 1000) {
+  const s = Math.max(0, Math.floor(now - unix));
+  if (s < 60) return "now";
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  if (s < 86_400) return `${Math.floor(s / 3600)}h`;
+  return `${Math.floor(s / 86_400)}d`;
+}

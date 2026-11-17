@@ -4,7 +4,7 @@
 
 /*
  * Kondora design tokens.
- * Colors are RGB channels so Tailwind can apply alpha: rgb(var(--marble-50) / 0.6).
+ * Colors are RGB channels so Tailwind can apply alpha: rgb(var(--fg) / 0.6).
  * Hex values are documented in brand/README.md.
  */
 @layer base {
@@ -103,7 +103,7 @@
   }
 
   .micro {
-    @apply font-mono text-micro uppercase text-marble-400;
+    @apply font-sans text-micro uppercase text-muted;
   }
 
   /* Fine film grain over imagery. Pure noise, no pattern. */

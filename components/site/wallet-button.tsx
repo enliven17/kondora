@@ -75,11 +75,11 @@ export function WalletButton({ className, variant = "outline", size = "sm", labe
         {shorten(address)}
       </button>
       {open && (
-        <div role="menu" className="absolute right-0 top-full z-50 mt-2 w-48 rounded-md border border-line bg-night-900 p-1 shadow-2xl">
+        <div role="menu" className="absolute right-0 top-full z-50 mt-2 w-48 rounded-md border border-line/10 bg-panel p-1 shadow-2xl">
           <button
             role="menuitem"
             type="button"
-            className="w-full rounded-sm px-3 py-2 text-left text-sm text-marble-200 hover:bg-night-800"
+            className="w-full rounded-sm px-3 py-2 text-left text-sm text-fg hover:bg-cocoa"
             onClick={() => {
               void navigator.clipboard?.writeText(address);
               setOpen(false);
@@ -90,7 +90,7 @@ export function WalletButton({ className, variant = "outline", size = "sm", labe
           <button
             role="menuitem"
             type="button"
-            className="w-full rounded-sm px-3 py-2 text-left text-sm text-marble-200 hover:bg-night-800"
+            className="w-full rounded-sm px-3 py-2 text-left text-sm text-fg hover:bg-cocoa"
             onClick={() => {
               setOpen(false);
               setVisible(true);
@@ -101,7 +101,7 @@ export function WalletButton({ className, variant = "outline", size = "sm", labe
           <button
             role="menuitem"
             type="button"
-            className="w-full rounded-sm px-3 py-2 text-left text-sm text-no hover:bg-night-800"
+            className="w-full rounded-sm px-3 py-2 text-left text-sm text-down hover:bg-cocoa"
             onClick={() => {
               setOpen(false);
               void disconnect();

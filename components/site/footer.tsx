@@ -1,101 +1,82 @@
 import Link from "next/link";
 
-import { KondoraMark, KondoraWordmark } from "@/components/brand/logo";
-import { TornEdge } from "@/components/ui/torn-edge";
-import { NetworkStatus } from "./network-status";
+import { KondoraLockup } from "@/components/brand/logo";
+import { FooterWordmark } from "./footer-wordmark";
 
-type FooterLink = { label: string; href?: string; external?: boolean; note?: string };
-
-const COLUMNS: Array<{ title: string; links: FooterLink[] }> = [
+/** Placeholder social destinations until the official handles are public. */
+const COLUMNS = [
   {
-    title: "Trade",
+    title: "Product",
     links: [
-      { label: "All markets", href: "/markets" },
-      { label: "Crypto", href: "/markets?category=crypto" },
-      { label: "Macro", href: "/markets?category=macro" },
-      { label: "Sports", href: "/markets?category=sports" },
-      { label: "Portfolio", href: "/portfolio" },
+      { href: "/markets", label: "Markets" },
+      { href: "/portfolio", label: "Portfolio" },
+      { href: "/stats", label: "Stats" },
+      { href: "/agents", label: "Agents" },
     ],
   },
   {
-    title: "Protocol",
+    title: "Resources",
     links: [
-      { label: "How it works", href: "/#how" },
-      { label: "Leverage", href: "/#leverage" },
-      { label: "Bring your agent", href: "/#agents" },
-      { label: "Docs", note: "Soon" },
-      { label: "Brand kit", note: "Soon" },
+      { href: "/docs", label: "Docs" },
+      { href: "/docs/api", label: "API" },
+      { href: "/docs/agents", label: "Bring your own agent" },
+      { href: "/brand", label: "Brand kit" },
     ],
   },
   {
-    title: "Community",
+    title: "Socials",
     links: [
-      { label: "X", href: "https://x.com/kondoraxyz", external: true },
-      { label: "GitHub", href: "https://github.com/kondora", external: true },
-      { label: "Telegram", href: "https://t.me/kondora", external: true },
+      { href: "https://x.com", label: "X" },
+      { href: "https://t.me", label: "Telegram" },
+      { href: "https://github.com", label: "GitHub" },
     ],
   },
-];
+] as const;
 
 export function SiteFooter() {
   return (
-    <footer className="relative mt-24 bg-night-900 pt-20 text-marble-200 sm:mt-32">
-      <TornEdge position="top" className="text-night-900" seed={31} />
-      <div className="page-x mx-auto max-w-page">
-        <div className="grid grid-cols-1 gap-12 lg:grid-cols-[1.2fr_2fr]">
-          <div className="max-w-sm">
-            <KondoraMark className="h-12 w-12 text-marble-50" />
-            <p className="mt-6 font-display text-3xl leading-tight text-marble-50">
-              Every question has a price. Agents keep it honest.
-            </p>
-            <p className="mt-4 text-sm text-marble-400">
-              Kondora runs on Solana devnet. Markets are created and settled by AI agents with sealed evidence on-chain.
-            </p>
-          </div>
+    <footer className="relative overflow-hidden bg-cocoa text-fg">
+      <div className="page-x mx-auto max-w-page pt-14">
+        <Link href="/" aria-label="Kondora home" className="inline-flex text-fg">
+          <KondoraLockup className="h-6" title="" />
+        </Link>
 
-          <div className="grid grid-cols-2 gap-10 sm:grid-cols-3">
+        <div className="mt-8 grid gap-12 border-t border-line/10 pt-10 lg:grid-cols-[1fr_auto]">
+          <p className="max-w-sm text-sm leading-relaxed text-muted">
+            Leveraged positions can be liquidated. Devnet, test funds only. Markets are opened and settled by AI agents;
+            read the risks before you trade.
+          </p>
+
+          <div className="grid grid-cols-2 gap-x-12 gap-y-10 sm:grid-cols-3 lg:gap-x-16">
             {COLUMNS.map((col) => (
               <nav key={col.title} aria-label={col.title}>
-                <h2 className="micro mb-4">{col.title}</h2>
-                <ul className="space-y-2.5 text-sm">
-                  {col.links.map((link) => (
-                    <li key={link.label}>
-                      {link.href ? (
+                <h2 className="text-sm font-medium text-acc">{col.title}</h2>
+                <ul className="mt-4 space-y-2.5">
+                  {col.links.map((link) => {
+                    const external = link.href.startsWith("http");
+                    return (
+                      <li key={link.label}>
                         <Link
                           href={link.href}
-                          {...(link.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-                          className="text-marble-200 transition-colors hover:text-marble-50"
+                          className="text-sm text-fg/80 transition-colors hover:text-fg"
+                          {...(external ? { target: "_blank", rel: "noreferrer" } : {})}
                         >
                           {link.label}
                         </Link>
-                      ) : (
-                        <span className="text-marble-600">
-                          {link.label} <span className="micro ml-1 text-marble-600">{link.note}</span>
-                        </span>
-                      )}
-                    </li>
-                  ))}
+                      </li>
+                    );
+                  })}
                 </ul>
               </nav>
             ))}
-            <section aria-labelledby="footer-network" className="col-span-2 sm:col-span-3">
-              <h2 id="footer-network" className="micro mb-4">
-                Network
-              </h2>
-              <NetworkStatus />
-            </section>
           </div>
         </div>
 
-        <div className="mt-20 text-marble-50 sm:mt-28" aria-hidden="true">
-          <KondoraWordmark className="h-auto w-full" strokeWidth={2.2} title="" />
-        </div>
+        <p className="mt-16 text-sm text-haze">© {new Date().getFullYear()} Kondora</p>
+      </div>
 
-        <div className="flex flex-col gap-3 py-8 text-xs text-marble-400 sm:flex-row sm:items-center sm:justify-between">
-          <span className="font-mono">kondora.xyz</span>
-          <span>Prediction markets carry risk. Leverage can lose your full margin.</span>
-          <span className="font-mono">&copy; {new Date().getFullYear()} Kondora</span>
-        </div>
+      <div className="page-x mx-auto -mb-[4%] mt-6 max-w-page">
+        <FooterWordmark />
       </div>
     </footer>
   );

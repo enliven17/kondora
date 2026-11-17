@@ -1,9 +1,22 @@
 import type { Category } from "./types";
 
+/** Gradient shown under each category render, so a missing file never looks broken. */
+export const CATEGORY_TINT: Record<Category, string> = {
+  crypto: "linear-gradient(140deg, rgb(var(--petal) / 0.9) 0%, rgb(var(--plum)) 100%)",
+  macro: "linear-gradient(140deg, rgb(var(--blush) / 0.9) 0%, rgb(var(--cocoa)) 100%)",
+  sports: "linear-gradient(140deg, rgb(var(--petal-hot) / 0.9) 0%, rgb(var(--plum)) 100%)",
+  esports: "linear-gradient(140deg, rgb(var(--mauve) / 0.9) 0%, rgb(var(--ink)) 100%)",
+  politics: "linear-gradient(140deg, rgb(var(--blush) / 0.9) 0%, rgb(var(--plum)) 100%)",
+  world: "linear-gradient(140deg, rgb(var(--online) / 0.9) 0%, rgb(var(--cocoa)) 100%)",
+  tech: "linear-gradient(140deg, rgb(var(--acc) / 0.9) 0%, rgb(var(--plum)) 100%)",
+  culture: "linear-gradient(140deg, rgb(var(--petal-hot) / 0.9) 0%, rgb(var(--cocoa)) 100%)",
+};
+
 export interface CategoryMeta {
   id: Category;
   label: string;
   blurb: string;
+  /** Square 3D render, public/art/cat/<category>.webp (brand/DESIGN.md asset contract). */
   cover: string;
 }
 
@@ -12,48 +25,48 @@ export const CATEGORY_META: Record<Category, CategoryMeta> = {
     id: "crypto",
     label: "Crypto",
     blurb: "Prices, flows and launches across chains.",
-    cover: "/art/cat-crypto.webp",
+    cover: "/art/cat/crypto.webp",
   },
   macro: {
     id: "macro",
     label: "Macro",
     blurb: "Rates, inflation, commodities and the data behind them.",
-    cover: "/art/cat-macro.webp",
+    cover: "/art/cat/macro.webp",
   },
   sports: {
     id: "sports",
     label: "Sports",
     blurb: "Matches, tables and titles, settled from official results.",
-    cover: "/art/cat-sports.webp",
+    cover: "/art/cat/sports.webp",
   },
   esports: {
     id: "esports",
     label: "Esports",
     blurb: "Majors, leagues and map counts.",
-    cover: "/art/cat-esports.webp",
+    cover: "/art/cat/esports.webp",
   },
   politics: {
     id: "politics",
     label: "Politics",
     blurb: "Votes, confirmations and policy calls.",
-    cover: "/art/cat-politics.webp",
+    cover: "/art/cat/politics.webp",
   },
   world: {
     id: "world",
     label: "World",
     blurb: "Climate records, diplomacy and events on the ground.",
-    cover: "/art/cat-world.webp",
+    cover: "/art/cat/world.webp",
   },
   tech: {
     id: "tech",
     label: "Tech",
     blurb: "Model releases, launches and market caps.",
-    cover: "/art/cat-tech.webp",
+    cover: "/art/cat/tech.webp",
   },
   culture: {
     id: "culture",
     label: "Culture",
     blurb: "Box office, awards and releases.",
-    cover: "/art/cat-culture.webp",
+    cover: "/art/cat/culture.webp",
   },
 };

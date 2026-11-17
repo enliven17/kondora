@@ -50,11 +50,6 @@ const config: Config = {
         online: token("online"),
         line: token("line"),
 
-        /* Legacy aliases kept only while screens are rebuilt. Do not use in new code. */
-        night: { 950: token("bg"), 900: token("panel"), 800: token("cocoa"), 700: token("plum"), 600: token("mauve-soft") },
-        marble: { 50: token("fg"), 200: token("blush"), 400: token("muted"), 600: token("mauve") },
-        yes: { DEFAULT: token("up"), soft: token("up-soft") },
-        no: { DEFAULT: token("down"), soft: token("down-soft") },
       },
       fontFamily: {
         display: ["var(--font-sans)", "system-ui", "sans-serif"],

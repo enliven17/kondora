@@ -15,7 +15,7 @@ import {
 } from "lightweight-charts";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import AnimatedTabs from "@/components/ui/animated-tabs";
+import { Panel } from "@/components/ui/panel";
 import { formatCents, formatDateTime, formatSignedPts, formatUsdCompact } from "@/lib/format";
 import { subscribePrice } from "@/lib/live";
 import type { PricePoint, Side } from "@/lib/types";
@@ -30,12 +30,14 @@ const RANGES: Array<{ value: Range; label: string; secs: number }> = [
   { value: "all", label: "All", secs: Number.POSITIVE_INFINITY },
 ];
 
-const COLORS = {
-  yes: { line: "#7EC4A4", top: "rgba(126,196,164,0.28)", bottom: "rgba(126,196,164,0)", vol: "rgba(126,196,164,0.35)" },
-  no: { line: "#DE846C", top: "rgba(222,132,108,0.28)", bottom: "rgba(222,132,108,0)", vol: "rgba(222,132,108,0.35)" },
-} as const;
-
 const centsFormatter = (p: number) => `${(p * 100).toFixed(1)}¢`;
+
+/** Canvas needs concrete colors: read the RGB channel tokens from :root. */
+function tokenColor(name: string, alpha = 1) {
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(`--${name}`).trim();
+  const [r = "255", g = "255", b = "255"] = raw.split(/\s+/);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
 
 interface Hover {
   x: number;
@@ -56,7 +58,9 @@ export interface PriceChartProps {
   className?: string;
 }
 
-/** Market price chart: curved area line, volume bars, crosshair tooltip, ranges, side toggle, live ticks. */
+const segment = "h-7 rounded-sm px-2.5 text-xs font-semibold transition-colors";
+
+/** Market price chart: area line, volume bars, crosshair tooltip, ranges, side toggle, live ticks. */
 export function PriceChart({ marketId, history, live = true, className }: PriceChartProps) {
   const [range, setRange] = useState<Range>("1d");
   const [side, setSide] = useState<Side>("yes");
@@ -88,18 +92,18 @@ export function PriceChart({ marketId, history, live = true, className }: PriceC
       autoSize: true,
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "#9E998D",
-        fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+        textColor: tokenColor("haze"),
+        fontFamily: getComputedStyle(document.body).fontFamily,
         fontSize: 11,
         attributionLogo: false,
       },
-      grid: { vertLines: { visible: false }, horzLines: { color: "rgba(35,49,80,0.55)" } },
+      grid: { vertLines: { visible: false }, horzLines: { color: tokenColor("line", 0.05) } },
       rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.12, bottom: 0.26 } },
       timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false, fixLeftEdge: true, fixRightEdge: true },
       crosshair: {
         mode: CrosshairMode.Magnet,
-        vertLine: { color: "rgba(243,238,228,0.35)", width: 1, style: 0, labelVisible: false },
-        horzLine: { color: "rgba(243,238,228,0.2)", width: 1, style: 2, labelBackgroundColor: "#1B2640" },
+        vertLine: { color: tokenColor("fg", 0.3), width: 1, style: 0, labelVisible: false },
+        horzLine: { color: tokenColor("fg", 0.18), width: 1, style: 2, labelBackgroundColor: tokenColor("plum") },
       },
       handleScroll: { vertTouchDrag: false, horzTouchDrag: true, mouseWheel: false, pressedMouseMove: true },
       handleScale: { mouseWheel: false, pinch: true, axisPressedMouseMove: false },
@@ -112,7 +116,7 @@ export function PriceChart({ marketId, history, live = true, className }: PriceC
       lastValueVisible: true,
       lastPriceAnimation: LastPriceAnimationMode.Disabled,
       crosshairMarkerRadius: 4,
-      crosshairMarkerBorderColor: "#05070D",
+      crosshairMarkerBorderColor: tokenColor("panel"),
       priceFormat: { type: "custom", formatter: centsFormatter, minMove: 0.001 },
     });
     const v = c.addSeries(HistogramSeries, {
@@ -155,14 +159,21 @@ export function PriceChart({ marketId, history, live = true, className }: PriceC
     const a = area.current;
     const v = volume.current;
     if (!a || !v) return;
-    const color = COLORS[side];
-    a.applyOptions({ lineColor: color.line, topColor: color.top, bottomColor: color.bottom, crosshairMarkerBackgroundColor: color.line });
+    const tone = side === "yes" ? "up" : "down";
+    const rising = tokenColor(tone, 0.4);
+    const falling = tokenColor(side === "yes" ? "down" : "up", 0.3);
+    a.applyOptions({
+      lineColor: tokenColor(tone),
+      topColor: tokenColor(tone, 0.28),
+      bottomColor: tokenColor(tone, 0),
+      crosshairMarkerBackgroundColor: tokenColor(tone),
+    });
     a.setData(visible.map((pt) => ({ time: pt.t as UTCTimestamp, value: pt.p })));
     v.setData(
       visible.map((pt, i) => ({
         time: pt.t as UTCTimestamp,
         value: pt.v,
-        color: i > 0 && pt.p < (visible[i - 1]?.p ?? pt.p) ? "rgba(222,132,108,0.32)" : color.vol,
+        color: i > 0 && pt.p < (visible[i - 1]?.p ?? pt.p) ? falling : rising,
       })),
     );
     chart.current?.timeScale().fitContent();
@@ -195,33 +206,29 @@ export function PriceChart({ marketId, history, live = true, className }: PriceC
   const rangeVolume = visible.reduce((sum, pt) => sum + pt.v, 0);
 
   return (
-    <div className={cn("rounded-md border border-line bg-night-900/70 p-4 sm:p-5", className)}>
+    <Panel as="section" aria-label="Price chart" className={cn("p-4 sm:p-5", className)}>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-marble-400">{side === "yes" ? "Yes" : "No"} price</span>
-            {live && (
-              <span className="rounded-xs bg-night-700 px-1.5 py-0.5 font-mono text-[0.625rem] uppercase tracking-wider text-marble-200">
-                Live
-              </span>
-            )}
+          <div className="flex items-center gap-2 text-xs">
+            <span className="font-medium text-muted">{side === "yes" ? "Yes" : "No"} price</span>
+            {live && <span className="font-semibold text-online">Live</span>}
           </div>
-          <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <span
               aria-live="polite"
               className={cn(
                 "num text-4xl leading-none transition-colors duration-500 sm:text-5xl",
-                flash === "up" ? "text-yes" : flash === "down" ? "text-no" : "text-marble-50",
+                flash === "up" ? "text-up" : flash === "down" ? "text-down" : "text-fg",
               )}
             >
               {last ? formatCents(last.p) : "..."}
             </span>
-            <span className={cn("num text-sm", up ? "text-yes" : "text-no")}>{formatSignedPts(change)} pts</span>
-            <span className="font-mono text-xs text-marble-400 tabular">Vol {formatUsdCompact(rangeVolume)}</span>
+            <span className={cn("num text-sm", up ? "text-up" : "text-down")}>{formatSignedPts(change)} pts</span>
+            <span className="num text-xs text-haze">Vol {formatUsdCompact(rangeVolume)}</span>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div role="radiogroup" aria-label="Chart side" className="flex rounded-sm border border-line p-0.5">
+          <div role="radiogroup" aria-label="Chart side" className="flex rounded bg-panel-deep p-0.5">
             {(["yes", "no"] as const).map((s) => (
               <button
                 key={s}
@@ -230,25 +237,32 @@ export function PriceChart({ marketId, history, live = true, className }: PriceC
                 aria-checked={side === s}
                 onClick={() => setSide(s)}
                 className={cn(
-                  "rounded-xs px-2.5 py-1 font-mono text-xs uppercase transition-colors",
-                  side === s ? (s === "yes" ? "bg-yes text-night-950" : "bg-no text-night-950") : "text-marble-400 hover:text-marble-50",
+                  segment,
+                  side === s ? (s === "yes" ? "bg-up text-ink" : "bg-down text-fg") : "text-muted hover:text-fg",
                 )}
               >
-                {s}
+                {s === "yes" ? "Yes" : "No"}
               </button>
             ))}
           </div>
-          <AnimatedTabs
-            tabs={RANGES.map((r) => ({ value: r.value, title: r.label }))}
-            value={range}
-            onValueChange={(v) => setRange(v as Range)}
-            ariaLabel="Chart range"
-            tabClassName="px-2.5 py-1 font-mono text-xs"
-          />
+          <div role="radiogroup" aria-label="Chart range" className="flex rounded bg-panel-deep p-0.5">
+            {RANGES.map((r) => (
+              <button
+                key={r.value}
+                type="button"
+                role="radio"
+                aria-checked={range === r.value}
+                onClick={() => setRange(r.value)}
+                className={cn(segment, "num", range === r.value ? "bg-fg/10 text-fg" : "text-muted hover:text-fg")}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      <div className="relative mt-4 h-64 sm:h-80">
+      <div className="relative mt-4 h-60 sm:h-80">
         <div
           ref={host}
           className="absolute inset-0"
@@ -261,21 +275,21 @@ export function PriceChart({ marketId, history, live = true, className }: PriceC
         />
         {hover && (
           <div
-            className="pointer-events-none absolute top-2 z-10 w-40 rounded-sm border border-line bg-night-950/95 px-3 py-2 shadow-xl"
+            className="pointer-events-none absolute top-2 z-10 w-40 rounded-md border border-line/10 bg-panel-deep/95 px-3 py-2 shadow-xl"
             style={{ left: Math.min(Math.max(hover.x + 14, 0), Math.max(width - 172, 0)) }}
           >
-            <div className="font-mono text-[0.6875rem] text-marble-400">{formatDateTime(hover.t)}</div>
+            <div className="num text-[11px] text-haze">{formatDateTime(hover.t)}</div>
             <div className="mt-1 flex items-baseline justify-between gap-4">
-              <span className={cn("text-xs font-semibold uppercase", side === "yes" ? "text-yes" : "text-no")}>{side}</span>
-              <span className="num text-base text-marble-50">{formatCents(hover.p)}</span>
+              <span className={cn("text-xs font-semibold", side === "yes" ? "text-up" : "text-down")}>{side === "yes" ? "Yes" : "No"}</span>
+              <span className="num text-base text-fg">{formatCents(hover.p)}</span>
             </div>
-            <div className="flex items-baseline justify-between gap-4 font-mono text-[0.6875rem] text-marble-400">
+            <div className="flex items-baseline justify-between gap-4 text-[11px] text-haze">
               <span>Vol</span>
-              <span className="tabular">{formatUsdCompact(hover.v)}</span>
+              <span className="num">{formatUsdCompact(hover.v)}</span>
             </div>
           </div>
         )}
       </div>
-    </div>
+    </Panel>
   );
 }

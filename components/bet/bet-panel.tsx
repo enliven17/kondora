@@ -2,24 +2,25 @@
 
 import { useWallet } from "@solana/wallet-adapter-react";
 import { AnimatePresence } from "motion/react";
-import { useEffect, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 
-import { OutcomeLabel } from "@/components/markets/market-card";
+import { OutcomeLabel } from "@/components/markets/outcome-label";
 import { CountUp } from "@/components/ui/count-up";
+import { Panel, PanelHeader } from "@/components/ui/panel";
 import { useFeedback } from "@/hooks/use-feedback";
 import { useNow } from "@/hooks/use-now";
-import { formatCents, formatLeverage, formatNumber, formatPct, formatUsd } from "@/lib/format";
+import { formatCents, formatLeverage, formatNumber, formatPct, formatUsd, formatUsdSigned } from "@/lib/format";
 import { type CapReason, leverageCap, PROTOCOL, quoteBet, sidePrice } from "@/lib/leverage";
 import { placeBet } from "@/lib/trade";
 import type { Market, Side } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { BetConfirmation, type ConfirmedBet } from "./bet-confirmation";
-import { LeverageDial } from "./leverage-dial";
+import { LeverageSlider } from "./leverage-slider";
 
 export const SIDE_EVENT = "kondora:side";
 
 const DEMO_BALANCE = 1_000;
-const QUICK = [10, 50, 100] as const;
+const PRESETS = [10, 25, 50, 100] as const;
 const SLIPPAGE = 0.01;
 
 const CAP_NOTES: Record<CapReason, string> = {
@@ -29,16 +30,31 @@ const CAP_NOTES: Record<CapReason, string> = {
   "reduce-only": "Only 1x opens in the final hour.",
 };
 
-export function BetPanel({ market, initialSide = "yes" }: { market: Market; initialSide?: Side }) {
+export interface BetPanelProps {
+  market: Market;
+  initialSide?: Side;
+  initialAmount?: number;
+  /** Clock for the first render so server and client agree on the cap. */
+  serverNow: number;
+}
+
+function blockReason(margin: number, overBalance: boolean, priceLimitHit: boolean): string | null {
+  if (!(margin > 0)) return "Enter an amount";
+  if (overBalance) return "Above your balance";
+  if (priceLimitHit) return "Too large for this pool";
+  return null;
+}
+
+export function BetPanel({ market, initialSide = "yes", initialAmount = 25, serverNow }: BetPanelProps) {
   const [side, setSide] = useState<Side>(initialSide);
-  const [amountText, setAmountText] = useState("50");
+  const [amountText, setAmountText] = useState(String(initialAmount));
   const [leverage, setLeverage] = useState(2);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState<ConfirmedBet | null>(null);
   const { publicKey } = useWallet();
   const { sound, setSound, success } = useFeedback();
-  const now = useNow();
+  const now = useNow(15_000) ?? serverNow;
   const amountId = useId();
 
   useEffect(() => {
@@ -50,44 +66,42 @@ export function BetPanel({ market, initialSide = "yes" }: { market: Market; init
     return () => window.removeEventListener(SIDE_EVENT, onSide);
   }, []);
 
-  const { cap, reason } = useMemo(
-    () => (now === null ? { cap: PROTOCOL.maxLeverage as number, reason: "max" as CapReason } : leverageCap(market.yesPrice, market.closeTime, now)),
-    [market.yesPrice, market.closeTime, now],
-  );
+  const { cap, reason } = useMemo(() => leverageCap(market.yesPrice, market.closeTime, now), [market.yesPrice, market.closeTime, now]);
   const lev = Math.min(leverage, cap);
   const margin = Number.parseFloat(amountText) || 0;
   const quote = useMemo(() => quoteBet(market, side, margin, lev), [market, side, margin, lev]);
   const price = sidePrice(market, side);
   const overBalance = margin > DEMO_BALANCE;
-  const canBet = margin > 0 && !overBalance && !quote.priceLimitHit && !pending;
+  const closed = market.state !== "open" || now >= market.closeTime;
+  const blocked = blockReason(margin, overBalance, quote.priceLimitHit);
+  const dismiss = useCallback(() => setConfirmed(null), []);
 
-  if (market.state !== "open") {
+  if (closed) {
     return (
-      <section aria-labelledby="bet-title" className="rounded-md border border-line bg-night-900 p-5">
-        <h2 id="bet-title" className="font-display text-3xl text-marble-50">
+      <Panel as="section" aria-labelledby="bet-title" className="p-5">
+        <h2 id="bet-title" className="text-xl font-bold tracking-tight text-fg">
           Trading closed
         </h2>
-        <div className="mt-3">
-          <OutcomeLabel market={market} />
+        <div className="mt-2">
+          <OutcomeLabel market={market.state === "open" ? { ...market, state: "closed" } : market} />
         </div>
-        <p className="mt-3 text-sm text-marble-400">
-          This market no longer accepts bets. See the oracle trail below for how it was settled.
+        <p className="mt-3 text-sm leading-relaxed text-muted">
+          This market no longer takes bets. The oracle and audit trail shows how it settles.
         </p>
-      </section>
+      </Panel>
     );
   }
 
   const submit = async () => {
-    if (!canBet) return;
+    if (blocked || pending) return;
     setPending(true);
     setError(null);
-    const minShares = quote.shares * (1 - SLIPPAGE);
     const result = await placeBet({
       marketId: market.id,
       side,
       margin,
       leverage: lev,
-      minShares,
+      minShares: quote.shares * (1 - SLIPPAGE),
       owner: publicKey?.toBase58(),
     });
     setPending(false);
@@ -99,29 +113,26 @@ export function BetPanel({ market, initialSide = "yes" }: { market: Market; init
     setConfirmed({ side, leverage: lev, margin, shares: quote.shares, payout: quote.payoutIfWin, liqPrice: quote.liqPrice, signature: result.signature });
   };
 
-  const tone = side === "yes" ? "text-yes" : "text-no";
+  const yes = side === "yes";
+  const sideWord = yes ? "YES" : "NO";
 
   return (
-    <section aria-labelledby="bet-title" className="relative overflow-hidden rounded-md border border-line bg-night-900">
-      <div className="flex items-center justify-between border-b border-line px-5 py-3">
-        <h2 id="bet-title" className="micro text-marble-200">
-          Place a bet
-        </h2>
+    <Panel as="section" aria-labelledby="bet-title" className="relative overflow-hidden">
+      <PanelHeader id="bet-title" title="Place a bet">
         <button
           type="button"
           aria-pressed={sound}
           onClick={() => setSound(!sound)}
-          className="micro rounded-xs px-2 py-1 hover:text-marble-50"
+          className="rounded-sm px-2 py-1 text-xs text-muted transition-colors hover:bg-fg/5 hover:text-fg"
         >
           Sound {sound ? "on" : "off"}
         </button>
-      </div>
+      </PanelHeader>
 
-      <div className="space-y-6 p-5">
-        <div role="radiogroup" aria-label="Side" className="grid grid-cols-2 gap-2">
+      <div className="space-y-4 p-4 sm:p-5">
+        <div role="radiogroup" aria-label="Side" className="grid grid-cols-2 gap-1 rounded bg-panel-deep p-1">
           {(["yes", "no"] as const).map((s) => {
             const active = side === s;
-            const p = sidePrice(market, s);
             return (
               <button
                 key={s}
@@ -130,34 +141,30 @@ export function BetPanel({ market, initialSide = "yes" }: { market: Market; init
                 aria-checked={active}
                 onClick={() => setSide(s)}
                 className={cn(
-                  "flex items-baseline justify-between rounded-sm border px-4 py-3 text-left transition-colors duration-200",
-                  active
-                    ? s === "yes"
-                      ? "border-yes bg-yes text-night-950"
-                      : "border-no bg-no text-night-950"
-                    : "border-line text-marble-200 hover:border-marble-400",
+                  "flex h-11 items-center justify-between rounded-sm px-3 text-sm font-bold transition-[background-color,color] duration-200",
+                  active ? (s === "yes" ? "bg-up text-ink" : "bg-down text-fg") : "text-muted hover:bg-fg/5 hover:text-fg",
                 )}
               >
-                <span className="text-sm font-semibold uppercase tracking-wide">{s}</span>
-                <span className="font-mono text-sm tabular">{formatCents(p)}</span>
+                <span>{s === "yes" ? "Yes" : "No"}</span>
+                <span className="num">{formatCents(sidePrice(market, s))}</span>
               </button>
             );
           })}
         </div>
 
         <div>
-          <div className="flex items-baseline justify-between">
-            <label htmlFor={amountId} className="micro">
-              Margin
+          <div className="flex items-baseline justify-between gap-2">
+            <label htmlFor={amountId} className="app-label">
+              Amount
             </label>
-            <span className="font-mono text-[0.6875rem] text-marble-400 tabular">
-              Balance {formatNumber(DEMO_BALANCE)} USDC{publicKey ? "" : " (demo)"}
+            <span className="text-xs text-haze">
+              Balance <span className="num text-muted">{formatNumber(DEMO_BALANCE)}</span> USDC{publicKey ? "" : " (demo)"}
             </span>
           </div>
           <div
             className={cn(
-              "mt-2 flex items-center rounded-sm border bg-night-950 focus-within:border-marble-400",
-              overBalance ? "border-no" : "border-line",
+              "mt-2 flex items-center rounded border bg-panel-deep transition-colors focus-within:border-line/30",
+              overBalance ? "border-down/70" : "border-line/10",
             )}
           >
             <input
@@ -168,99 +175,85 @@ export function BetPanel({ market, initialSide = "yes" }: { market: Market; init
               step="1"
               value={amountText}
               onChange={(e) => setAmountText(e.target.value)}
-              className="h-12 w-full min-w-0 bg-transparent px-3 font-mono text-xl text-marble-50 tabular focus:outline-none"
+              className="num h-12 w-full min-w-0 bg-transparent px-3 text-xl text-fg focus:outline-none"
               aria-describedby={overBalance ? `${amountId}-err` : undefined}
+              aria-invalid={overBalance || undefined}
             />
-            <span className="pr-3 font-mono text-sm text-marble-400">USDC</span>
+            <span className="pr-3 text-sm font-medium text-haze">USDC</span>
           </div>
           {overBalance && (
-            <p id={`${amountId}-err`} className="mt-1 text-xs text-no">
+            <p id={`${amountId}-err`} className="mt-1 text-xs text-down">
               Above your balance.
             </p>
           )}
-          <div className="mt-2 grid grid-cols-4 gap-1.5">
-            {QUICK.map((q) => (
+          <div className="mt-2 grid grid-cols-5 gap-1">
+            {PRESETS.map((p) => (
               <button
-                key={q}
+                key={p}
                 type="button"
-                onClick={() => setAmountText(String(Math.min(DEMO_BALANCE, margin + q)))}
-                className="rounded-xs border border-line py-1.5 font-mono text-xs text-marble-200 hover:border-marble-400"
+                onClick={() => setAmountText(String(p))}
+                aria-pressed={margin === p}
+                className={cn(
+                  "num h-8 rounded-sm text-xs transition-colors",
+                  margin === p ? "bg-acc text-acc-ink" : "bg-fg/5 text-muted hover:bg-fg/10 hover:text-fg",
+                )}
               >
-                +{q}
+                {p}
               </button>
             ))}
             <button
               type="button"
               onClick={() => setAmountText(String(DEMO_BALANCE))}
-              className="rounded-xs border border-line py-1.5 font-mono text-xs text-marble-200 hover:border-marble-400"
+              aria-pressed={margin === DEMO_BALANCE}
+              className={cn(
+                "h-8 rounded-sm text-xs font-semibold transition-colors",
+                margin === DEMO_BALANCE ? "bg-acc text-acc-ink" : "bg-fg/5 text-muted hover:bg-fg/10 hover:text-fg",
+              )}
             >
               Max
             </button>
           </div>
         </div>
 
-        <div>
-          <div className="micro mb-1">Leverage</div>
-          <LeverageDial value={lev} onChange={setLeverage} cap={cap} tone={side} capNote={CAP_NOTES[reason]} />
-          <div className="mt-3 grid grid-cols-5 gap-1.5">
-            {[1, 2, 3, 4, 5].map((l) => (
-              <button
-                key={l}
-                type="button"
-                disabled={l > cap}
-                onClick={() => setLeverage(l)}
-                aria-pressed={lev === l}
-                className={cn(
-                  "rounded-xs border py-1.5 font-mono text-xs transition-colors",
-                  lev === l ? "border-marble-50 text-marble-50" : "border-line text-marble-400 hover:border-marble-400",
-                  "disabled:opacity-30",
-                )}
-              >
-                {l}x
-              </button>
-            ))}
-          </div>
-        </div>
+        <LeverageSlider value={lev} onChange={setLeverage} cap={cap} disabled={reason === "reduce-only"} note={CAP_NOTES[reason]} />
 
-        <div className="rounded-sm bg-night-950/70 p-4">
+        <div className="rounded-lg bg-panel-deep/80 p-4">
           <div className="flex items-end justify-between gap-3" aria-live="polite">
-            <div>
-              <div className="micro">Payout if {side}</div>
-              <CountUp value={quote.payoutIfWin} format={formatUsd} className={cn("num text-4xl leading-none tabular", tone)} />
+            <div className="min-w-0">
+              <div className="text-xs text-haze">Payout if {sideWord} wins</div>
+              <CountUp value={quote.payoutIfWin} format={formatUsd} className={cn("num block truncate text-[2rem] leading-tight", yes ? "text-up" : "text-down")} />
             </div>
-            <div className="text-right">
-              <div className="micro">Profit</div>
-              <div className="font-mono text-sm text-marble-50 tabular">
-                {formatUsd(quote.profitIfWin)}{" "}
-                <span className="text-marble-400">{margin > 0 ? formatPct(quote.profitIfWin / margin, true) : ""}</span>
+            <div className="shrink-0 text-right">
+              <div className="text-xs text-haze">Profit</div>
+              <div className="num text-sm text-fg">
+                {formatUsdSigned(quote.profitIfWin)}{" "}
+                <span className="text-haze">{margin > 0 ? formatPct(quote.profitIfWin / margin, true) : ""}</span>
               </div>
             </div>
           </div>
-          <dl className="mt-4 grid grid-cols-1 gap-x-4 gap-y-2 border-t border-line/70 pt-4 text-sm xs:grid-cols-2">
+          <dl className="mt-3 space-y-1.5 border-t border-line/10 pt-3 text-sm">
             <Row label="Avg price" value={formatCents(quote.avgPrice)} />
-            <Row label="Est. shares" value={formatNumber(quote.shares)} />
-            <Row label="Position" value={formatUsd(quote.notional)} />
+            <Row label="Shares" value={formatNumber(quote.shares)} />
+            <Row label="Position size" value={formatUsd(quote.notional)} />
             <Row label="Borrowed" value={formatUsd(quote.debt)} />
             <Row label={`Fee ${formatPct(PROTOCOL.feeRate)}`} value={formatUsd(quote.fee)} />
             <Row label="Price after" value={formatCents(quote.priceAfter)} />
             <Row
-              label="Liquidation"
-              value={lev <= 1 ? "None at 1x" : `${side.toUpperCase()} ${formatCents(quote.liqPrice)}`}
-              emphasis={lev > 1}
-              wide
+              label="Liquidation price"
+              value={quote.liqPrice === null ? "None at 1x" : `${sideWord} ${formatCents(quote.liqPrice)}`}
+              tone={quote.liqPrice === null ? undefined : "text-acc"}
             />
           </dl>
-          {lev > 1 && (
-            <p className="mt-3 text-xs leading-relaxed text-marble-400">
-              If {side.toUpperCase()} falls from {formatCents(price)} to about {formatCents(quote.liqPrice)}, the position is
-              closed and the margin is lost. Borrow fee accrues hourly.
+          {quote.liqPrice !== null && (
+            <p className="mt-3 text-xs leading-relaxed text-haze">
+              If {sideWord} falls from {formatCents(price)} to {formatCents(quote.liqPrice)}, the position closes and the margin is
+              lost. Borrow fee accrues hourly.
             </p>
           )}
         </div>
 
-        {quote.priceLimitHit && <p className="text-xs text-no">This size would push the price above 99¢. Lower the amount or leverage.</p>}
         {error && (
-          <p role="alert" className="text-xs text-no">
+          <p role="alert" className="text-xs text-down">
             {error}
           </p>
         )}
@@ -268,38 +261,43 @@ export function BetPanel({ market, initialSide = "yes" }: { market: Market; init
         <button
           type="button"
           onClick={submit}
-          disabled={!canBet}
+          disabled={Boolean(blocked) || pending}
           className={cn(
-            "flex h-14 w-full items-center justify-center gap-2 rounded-sm text-base font-semibold text-night-950 transition-[transform,background-color] duration-150 active:scale-[0.98] disabled:opacity-40",
-            side === "yes" ? "bg-yes hover:bg-yes/90" : "bg-no hover:bg-no/90",
+            "group/bet relative flex h-14 w-full items-center justify-center gap-2 overflow-hidden rounded text-base font-bold",
+            "transition-[transform,box-shadow,background-color] duration-150 ease-enter active:translate-y-px active:scale-[0.97]",
+            "disabled:cursor-not-allowed disabled:bg-fg/10 disabled:text-muted disabled:shadow-none",
+            yes
+              ? "bg-up text-ink shadow-[0_12px_32px_-12px_rgb(var(--up)/0.7)] hover:bg-up/90"
+              : "bg-down text-fg shadow-[0_12px_32px_-12px_rgb(var(--down)/0.7)] hover:bg-down/90",
           )}
         >
-          {pending ? "Placing" : `Buy ${side.toUpperCase()} at ${formatCents(quote.avgPrice)}, ${formatLeverage(lev)}`}
+          {pending ? (
+            "Placing"
+          ) : blocked ? (
+            blocked
+          ) : (
+            <>
+              Buy {sideWord} <span className="num opacity-80">{formatLeverage(lev)}</span>
+            </>
+          )}
         </button>
-        <p className="text-center text-[0.6875rem] text-marble-600">
+        <p className="text-center text-[11px] text-haze">
           {publicKey ? "Signed by your session key. No wallet popup." : "Demo mode. Connect a wallet to trade on devnet."}
         </p>
       </div>
 
       <AnimatePresence>
-        {confirmed && (
-          <BetConfirmation
-            key={confirmed.signature}
-            bet={confirmed}
-            question={market.question}
-            onDone={() => setConfirmed(null)}
-          />
-        )}
+        {confirmed && <BetConfirmation key={confirmed.signature} bet={confirmed} question={market.question} onDone={dismiss} />}
       </AnimatePresence>
-    </section>
+    </Panel>
   );
 }
 
-function Row({ label, value, emphasis, wide }: { label: string; value: string; emphasis?: boolean; wide?: boolean }) {
+function Row({ label, value, tone }: { label: string; value: string; tone?: string }) {
   return (
-    <div className={cn("flex items-baseline justify-between gap-3", wide && "xs:col-span-2")}>
-      <dt className="text-marble-400">{label}</dt>
-      <dd className={cn("font-mono tabular", emphasis ? "text-gold" : "text-marble-50")}>{value}</dd>
+    <div className="flex items-baseline justify-between gap-3">
+      <dt className="text-muted">{label}</dt>
+      <dd className={cn("num", tone ?? "text-fg")}>{value}</dd>
     </div>
   );
 }

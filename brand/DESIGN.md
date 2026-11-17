@@ -73,4 +73,4 @@ Raster art lives in `public/art/` and is generated with Codex in one consistent 
 | `cat/<category>.webp` | 640x640 | One 3D object per category (crypto, macro, sports, esports, politics, world, tech, culture) |
 | `petals/petal-1.png` ... `petal-4.png` | 96x96 | Transparent single petals and leaves for the falling animation |
 
-Logo files live in `brand/logo/`. The mark is a split coin: two half discs offset horizontally (YES and NO, shifted by leverage).
+Logo files live in `brand/logo/` (downloadable copies in `public/brand/`), built by `node brand/scripts/build-logo.mjs`. The mark is a split coin: two half discs offset horizontally (YES and NO, shifted by leverage). The wordmark is lowercase "kondora" in Satoshi Bold outlines. Art is optimized from Codex renders with `node brand/scripts/optimize-art.mjs <png-dir>`.

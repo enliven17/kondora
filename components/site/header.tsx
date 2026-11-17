@@ -1,34 +1,33 @@
 "use client";
 
-import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 
 import { KondoraLockup } from "@/components/brand/logo";
+import { ButtonLink } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { WalletButton } from "./wallet-button";
 
-const NAV = [
+export const SITE_NAV = [
   { href: "/markets", label: "Markets" },
-  { href: "/portfolio", label: "Portfolio" },
-  { href: "/#how", label: "How it works" },
-  { href: "/#agents", label: "Agents" },
+  { href: "/docs/how-it-works", label: "How it works" },
+  { href: "/stats", label: "Stats" },
+  { href: "/agents", label: "Agents" },
+  { href: "/docs", label: "Docs" },
 ] as const;
 
+function isActive(pathname: string, href: string) {
+  if (href === "/docs") return pathname.startsWith("/docs") && pathname !== "/docs/how-it-works";
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/** Marketing header: lockup left, centered nav, "Launch app" right. Paper surface with a hairline. */
 export function SiteHeader() {
   const pathname = usePathname();
-  const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
+  const menuId = useId();
 
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 24);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  // Close the mobile sheet on navigation.
+  // Close the mobile menu on navigation.
   const [lastPath, setLastPath] = useState(pathname);
   if (lastPath !== pathname) {
     setLastPath(pathname);
@@ -38,40 +37,36 @@ export function SiteHeader() {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    const onResize = () => window.innerWidth >= 768 && setOpen(false);
     document.addEventListener("keydown", onKey);
+    window.addEventListener("resize", onResize);
     document.documentElement.style.overflow = "hidden";
     return () => {
       document.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", onResize);
       document.documentElement.style.overflow = "";
     };
   }, [open]);
 
-  const solid = scrolled || pathname !== "/" || open;
-
   return (
-    <header
-      className={cn(
-        "fixed inset-x-0 top-0 z-50 transition-[background-color,backdrop-filter,border-color] duration-300",
-        solid ? "border-b border-line/70 bg-night-950/80 backdrop-blur-md" : "border-b border-transparent",
-      )}
-    >
-      <div className="page-x mx-auto flex h-[var(--header-h)] max-w-page items-center justify-between gap-4">
-        <Link href="/" aria-label="Kondora home" className="shrink-0 text-marble-50">
-          <KondoraLockup />
+    <header className="sticky top-0 z-50 border-b border-cocoa/10 bg-paper/90 backdrop-blur-md">
+      <div className="page-x mx-auto flex h-16 max-w-page items-center justify-between gap-6">
+        <Link href="/" aria-label="Kondora home" className="flex items-center text-cocoa">
+          <KondoraLockup className="h-[22px]" title="" />
         </Link>
 
-        <nav aria-label="Primary" className="hidden md:block">
+        <nav aria-label="Main" className="absolute left-1/2 hidden -translate-x-1/2 md:block">
           <ul className="flex items-center gap-1">
-            {NAV.map((item) => {
-              const active = !item.href.includes("#") && pathname.startsWith(item.href);
+            {SITE_NAV.map((item) => {
+              const active = isActive(pathname, item.href);
               return (
                 <li key={item.href}>
                   <Link
                     href={item.href}
                     aria-current={active ? "page" : undefined}
                     className={cn(
-                      "rounded-sm px-3 py-2 text-sm transition-colors",
-                      active ? "text-marble-50" : "text-marble-400 hover:text-marble-50",
+                      "rounded-sm px-3 py-2 text-sm transition-colors duration-200",
+                      active ? "font-medium text-cocoa" : "text-mauve hover:text-cocoa",
                     )}
                   >
                     {item.label}
@@ -83,55 +78,45 @@ export function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <div className="hidden xs:block">
-            <WalletButton />
-          </div>
+          <ButtonLink href="/markets" variant="dark" arrow className="hidden sm:inline-flex">
+            Launch app
+          </ButtonLink>
           <button
             type="button"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-sm text-marble-50 hover:bg-marble-50/5 md:hidden"
+            className="grid size-11 place-items-center rounded text-cocoa hover:bg-blush md:hidden"
             aria-expanded={open}
-            aria-controls="mobile-nav"
+            aria-controls={menuId}
             aria-label={open ? "Close menu" : "Open menu"}
             onClick={() => setOpen((v) => !v)}
           >
-            <svg viewBox="0 0 20 20" className="h-5 w-5" aria-hidden="true">
-              {open ? (
-                <path d="M4 4 L16 16 M16 4 L4 16" stroke="currentColor" strokeWidth="1.5" />
-              ) : (
-                <path d="M2 6 H18 M2 14 H18" stroke="currentColor" strokeWidth="1.5" />
-              )}
+            <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+              {open ? <path d="M6 6l12 12M18 6 6 18" /> : <path d="M4 8h16M4 16h16" />}
             </svg>
           </button>
         </div>
       </div>
 
-      <AnimatePresence>
-        {open && (
-          <motion.nav
-            id="mobile-nav"
-            aria-label="Mobile"
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
-            className="page-x fixed inset-x-0 bottom-0 top-[var(--header-h)] overflow-y-auto bg-night-950 pb-10 pt-6 md:hidden"
-          >
-            <ul className="flex flex-col">
-              {NAV.map((item, i) => (
-                <li key={item.href} className="border-b border-line/60">
-                  <Link href={item.href} onClick={() => setOpen(false)} className="flex items-baseline justify-between py-5">
-                    <span className="text-3xl font-semibold tracking-tight text-marble-50">{item.label}</span>
-                    <span className="micro">0{i + 1}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-            <div className="mt-8">
-              <WalletButton variant="dark" size="lg" className="w-full" />
-            </div>
-          </motion.nav>
-        )}
-      </AnimatePresence>
+      <div
+        id={menuId}
+        hidden={!open}
+        className="site-menu fixed inset-x-0 bottom-0 top-16 z-40 overflow-y-auto border-t border-cocoa/10 bg-paper md:hidden"
+      >
+        <nav aria-label="Mobile" className="page-x flex flex-col py-4">
+          {SITE_NAV.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-current={isActive(pathname, item.href) ? "page" : undefined}
+              className="border-b border-cocoa/10 py-4 text-2xl font-medium tracking-[-0.02em] text-cocoa"
+            >
+              {item.label}
+            </Link>
+          ))}
+          <ButtonLink href="/markets" variant="dark" size="lg" arrow className="mt-6 w-full justify-start">
+            Launch app
+          </ButtonLink>
+        </nav>
+      </div>
     </header>
   );
 }

@@ -1,28 +1,47 @@
+import { Panel } from "@/components/ui/panel";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 
 export default function PortfolioLoading() {
   return (
-    <LoadingRegion label="Loading portfolio" className="page-x mx-auto max-w-page pt-[calc(var(--header-h)+2.5rem)]">
-      <Skeleton className="h-3 w-20" />
-      <Skeleton className="mt-4 h-14 w-80 max-w-full sm:h-20" />
-      <Skeleton className="mt-4 h-4 w-96 max-w-full" />
-      <div className="mb-8 mt-10 grid grid-cols-2 gap-4 sm:grid-cols-4">
+    <LoadingRegion label="Loading portfolio" className="mx-auto max-w-6xl space-y-4">
+      <Panel className="p-4 sm:p-5">
+        <Skeleton className="h-4 w-20" />
+        <div className="mt-2 grid grid-cols-1 gap-4 py-4 xs:grid-cols-3">
+          {Array.from({ length: 3 }, (_, i) => (
+            <div key={i} className="space-y-2">
+              <Skeleton className="h-3 w-16" />
+              <Skeleton className="h-8 w-32 max-w-full" />
+            </div>
+          ))}
+        </div>
+      </Panel>
+      <Panel className="overflow-hidden">
+        <div className="border-b border-line/10 px-5 py-4">
+          <Skeleton className="h-4 w-20" />
+        </div>
         {Array.from({ length: 4 }, (_, i) => (
-          <Skeleton key={i} className="h-20" />
-        ))}
-      </div>
-      <div className="overflow-hidden rounded-md border border-line">
-        <Skeleton className="h-11 w-full rounded-none" />
-        {Array.from({ length: 4 }, (_, i) => (
-          <div key={i} className="flex items-center gap-4 border-t border-line/60 px-4 py-4">
-            <Skeleton className="h-4 flex-1" />
-            <Skeleton className="hidden h-4 w-16 sm:block" />
-            <Skeleton className="hidden h-4 w-16 sm:block" />
-            <Skeleton className="h-2 w-20" />
-            <Skeleton className="h-8 w-16" />
+          <div key={i} className="flex items-center gap-3 border-b border-line/[0.07] px-4 py-4 sm:px-5">
+            <Skeleton className="size-10 shrink-0 rounded-md" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-3 w-1/3" />
+            </div>
+            <Skeleton className="hidden h-9 w-20 sm:block" />
           </div>
         ))}
-      </div>
+      </Panel>
+      <Panel className="overflow-hidden">
+        <div className="border-b border-line/10 px-5 py-4">
+          <Skeleton className="h-4 w-16" />
+        </div>
+        {Array.from({ length: 3 }, (_, i) => (
+          <div key={i} className="flex items-center gap-3 px-4 py-3 sm:px-5">
+            <Skeleton className="size-9 shrink-0 rounded-md" />
+            <Skeleton className="h-4 flex-1" />
+            <Skeleton className="h-4 w-14" />
+          </div>
+        ))}
+      </Panel>
     </LoadingRegion>
   );
 }

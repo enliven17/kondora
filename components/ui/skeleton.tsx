@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 
 /** Shimmering placeholder block. Size it with className to match the final layout. */
 export function Skeleton({ className }: { className?: string }) {
-  return <div aria-hidden="true" className={cn("skeleton rounded-sm", className)} />;
+  return <div aria-hidden="true" className={cn("skeleton rounded-sm bg-fg/5", className)} />;
 }
 
 /** Wraps a loading region so assistive tech hears one status message. */

@@ -6,7 +6,6 @@ import { useEffect, useRef } from "react";
 
 import { KondoraMark } from "@/components/brand/logo";
 import { CountUp } from "@/components/ui/count-up";
-import { TornEdge } from "@/components/ui/torn-edge";
 import { formatCents, formatLeverage, formatNumber, formatUsd, shortHash } from "@/lib/format";
 import type { Side } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -17,11 +16,11 @@ export interface ConfirmedBet {
   margin: number;
   shares: number;
   payout: number;
-  liqPrice: number;
+  liqPrice: number | null;
   signature: string;
 }
 
-/** The confirm moment: a ticket rises over the panel, the condor sweeps in, numbers count up. */
+/** The confirm moment: a ticket rises over the panel, the coin halves snap together, the payout counts up. */
 export function BetConfirmation({ bet, question, onDone }: { bet: ConfirmedBet; question: string; onDone: () => void }) {
   const reduce = useReducedMotion();
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -33,80 +32,74 @@ export function BetConfirmation({ bet, question, onDone }: { bet: ConfirmedBet; 
     return () => window.removeEventListener("keydown", onKey);
   }, [onDone]);
 
-  const tone = bet.side === "yes" ? "text-yes" : "text-no";
+  const yes = bet.side === "yes";
 
   return (
     <motion.div
       role="status"
       aria-live="assertive"
-      className="absolute inset-0 z-20 flex flex-col justify-end bg-night-950/70 backdrop-blur-sm"
+      className="absolute inset-0 z-20 flex flex-col justify-end bg-ink/70 backdrop-blur-sm"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
       <motion.div
-        className="relative bg-marble-50 px-6 pb-6 pt-10 text-night-950"
-        initial={reduce ? { opacity: 0 } : { y: "100%" }}
+        className="relative m-2 rounded-xl bg-paper px-5 pb-5 pt-6 text-cocoa"
+        initial={reduce ? { opacity: 0 } : { y: "105%" }}
         animate={reduce ? { opacity: 1 } : { y: 0 }}
-        exit={reduce ? { opacity: 0 } : { y: "100%" }}
-        transition={{ type: "spring", bounce: 0.22, duration: 0.6 }}
+        exit={reduce ? { opacity: 0 } : { y: "105%" }}
+        transition={{ type: "spring", bounce: 0.22, duration: 0.55 }}
       >
-        <TornEdge position="top" className="text-marble-50" seed={bet.signature.length + 3} height={18} deckle={false} />
         <motion.div
-          className="absolute -top-10 right-6"
-          initial={reduce ? false : { x: -120, y: 30, rotate: -12, opacity: 0 }}
-          animate={{ x: 0, y: 0, rotate: 0, opacity: 1 }}
-          transition={{ delay: 0.25, duration: 0.8, ease: [0.23, 1, 0.32, 1] }}
+          className="absolute right-5 top-5 text-plum"
+          initial={reduce ? false : { scale: 0.4, rotate: -30, opacity: 0 }}
+          animate={{ scale: 1, rotate: 0, opacity: 1 }}
+          transition={{ delay: 0.2, type: "spring", bounce: 0.5, duration: 0.6 }}
         >
-          <KondoraMark className="h-16 w-16 text-night-950 drop-shadow-[0_6px_12px_rgba(0,0,0,0.35)]" title="" aria-hidden />
+          <KondoraMark title="" className="size-10" />
         </motion.div>
 
-        <p className="font-mono text-[0.6875rem] uppercase tracking-[0.14em] text-night-700">Position open</p>
-        <p className="mt-2 line-clamp-2 text-sm text-night-800">{question}</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-mauve">Position open</p>
+        <p className="mt-1.5 line-clamp-2 pr-12 text-sm text-mauve">{question}</p>
 
         <div className="mt-5 flex items-end justify-between gap-4">
           <div>
-            <div className="font-mono text-[0.6875rem] uppercase tracking-[0.14em] text-night-700">Pays if {bet.side}</div>
-            <CountUp
-              value={bet.payout}
-              format={formatUsd}
-              duration={1.1}
-              className="num text-5xl leading-none text-night-950 tabular"
-            />
+            <div className="text-xs text-mauve">Pays if {yes ? "YES" : "NO"}</div>
+            <CountUp value={bet.payout} from={0} format={formatUsd} duration={1.1} className="num text-5xl leading-none text-cocoa" />
           </div>
-          <span className={cn("rounded-xs bg-night-950 px-2.5 py-1.5 font-mono text-sm uppercase", tone)}>
-            {bet.side} {formatLeverage(bet.leverage)}
+          <span className={cn("num rounded-sm px-2.5 py-1.5 text-sm font-bold", yes ? "bg-up text-ink" : "bg-down text-fg")}>
+            {yes ? "YES" : "NO"} {formatLeverage(bet.leverage)}
           </span>
         </div>
 
-        <dl className="mt-5 grid grid-cols-3 gap-3 border-t border-night-950/15 pt-4 font-mono text-xs">
+        <dl className="mt-5 grid grid-cols-3 gap-3 border-t border-cocoa/10 pt-4 text-xs">
           <div>
-            <dt className="text-night-700">Margin</dt>
-            <dd className="mt-0.5 tabular">{formatUsd(bet.margin)}</dd>
+            <dt className="text-mauve">Margin</dt>
+            <dd className="num mt-0.5 text-sm">{formatUsd(bet.margin)}</dd>
           </div>
           <div>
-            <dt className="text-night-700">Shares</dt>
-            <dd className="mt-0.5 tabular">{formatNumber(bet.shares)}</dd>
+            <dt className="text-mauve">Shares</dt>
+            <dd className="num mt-0.5 text-sm">{formatNumber(bet.shares)}</dd>
           </div>
           <div>
-            <dt className="text-night-700">Liquidation</dt>
-            <dd className="mt-0.5 tabular">{bet.leverage > 1 ? formatCents(bet.liqPrice) : "None"}</dd>
+            <dt className="text-mauve">Liquidation</dt>
+            <dd className="num mt-0.5 text-sm">{bet.liqPrice === null ? "None" : formatCents(bet.liqPrice)}</dd>
           </div>
         </dl>
-        <p className="mt-3 font-mono text-[0.6875rem] text-night-700">Tx {shortHash(bet.signature, 6)}</p>
+        <p className="mt-3 font-mono text-[11px] text-mauve">Tx {shortHash(bet.signature, 6)}</p>
 
         <div className="mt-5 grid grid-cols-2 gap-2">
           <button
             ref={closeRef}
             type="button"
             onClick={onDone}
-            className="h-11 rounded-sm bg-night-950 text-sm font-medium text-marble-50 hover:bg-night-800"
+            className="h-11 rounded bg-plum text-sm font-semibold text-fg transition-[background-color,transform] hover:bg-cocoa active:scale-[0.98]"
           >
             Bet again
           </button>
           <Link
             href="/portfolio"
-            className="flex h-11 items-center justify-center rounded-sm border border-night-950/30 text-sm font-medium hover:border-night-950"
+            className="flex h-11 items-center justify-center rounded border border-cocoa/20 text-sm font-semibold transition-colors hover:border-cocoa/50"
           >
             View portfolio
           </Link>

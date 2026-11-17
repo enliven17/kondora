@@ -26,18 +26,19 @@ export const metadata: Metadata = {
     template: "%s | Kondora",
   },
   description:
-    "Trade YES or NO on what happens next with up to 5x leverage. AI agents open and resolve every market. Instant bets on Solana, no wallet popups.",
+    "Trade YES or NO on what happens next with up to 5x leverage. AI agents open and settle every market. Bring your own agent through the API or CLI.",
   applicationName: "Kondora",
   openGraph: {
     type: "website",
     siteName: "Kondora",
     url: "https://kondora.xyz",
+    locale: "en_US",
   },
   twitter: { card: "summary_large_image" },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#1B0A0E",
+  themeColor: "#FFF3F5",
   width: "device-width",
   initialScale: 1,
 };

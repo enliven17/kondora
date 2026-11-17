@@ -1,80 +1,76 @@
-# Kondora brand kit
+# Kondora brand
 
-Kondora is a night-sky editorial brand: classical marble lit by moonlight, Andes peaks, torn paper, and a geometric condor. Calm, precise, a little theatrical. Never loud.
+The design system and asset contract live in [DESIGN.md](./DESIGN.md). This file is the short guide for using the brand. A live version is at kondora.xyz/brand.
 
 ## Logo
 
+The mark is a split coin: two half discs offset horizontally. YES and NO, shifted apart by leverage. The wordmark is lowercase "kondora" in Satoshi Bold, converted to outlines.
+
 | File | Use |
 | --- | --- |
-| `logo/kondora-mark.svg` | Condor mark alone. App icons, avatars, favicons, tight spaces. Works from 16px up. |
-| `logo/kondora-wordmark.svg` | "KONDORA" wordmark alone. Footers, large display use. |
-| `logo/kondora-lockup.svg` | Mark plus wordmark, horizontal. Default for headers and partner pages. |
-| `../app/icon.svg` | Favicon on a night tile. |
+| `logo/kondora-lockup-plum-on-paper.svg` | Default, on light surfaces |
+| `logo/kondora-lockup-paper-on-plum.svg` | On dark surfaces |
+| `logo/kondora-lockup-mono.svg`, `-mono-white.svg` | One-color print, embossing, partner pages |
+| `logo/kondora-mark-*.svg` | Avatars, favicons, small spaces |
+| `logo/kondora-mark-app.svg` | App icon (paper mark on plum) |
+| `logo/kondora-wordmark-*.svg` | When the mark already appears nearby |
+| `logo/*.png` | Raster exports at 1024 to 2000px |
 
-The mark is an Andean condor in a soaring glide seen from the front: a raised head, a chevron collar (the condor's white ruff), stepped primary feathers, and a pointed tail. The wordmark is a monoline geometric cap set with wide tracking.
+`kondora-mark.svg`, `kondora-wordmark.svg` and `kondora-lockup.svg` use `currentColor`.
 
-The React versions (`components/brand/logo.tsx`) share the same geometry and use `currentColor`.
+Regenerate every file (including `app/icon.svg`, `app/apple-icon.png`, `app/favicon.ico` and `components/brand/logo-paths.ts`) with:
 
-**Clear space:** at least the height of the mark's head (one fifth of the mark height) on every side.
-**Minimum size:** mark 16px, lockup 96px wide, wordmark 72px wide.
+```bash
+node brand/scripts/build-logo.mjs
+```
 
-### Do
+**Clear space:** the height of one half disc on every side.
+**Minimum size:** mark 16px, lockup 80px wide.
 
-- Use marble (`#F3EEE4`) on night backgrounds, or night (`#05070D`) on marble.
-- Keep the mark flat, single color.
-- Scale the wordmark large and quiet, like the site footer.
+## Colors
 
-### Do not
-
-- Recolor the mark with YES or NO colors, gradients, or glows.
-- Rotate, outline, or add a container shape (circle, pill) around the mark, except the square app tile.
-- Set "Kondora" in another typeface as a logo.
-- Place the logo on busy art without a dark scrim.
-
-## Color
-
-Tokens live in `app/globals.css` as RGB channels and in `tailwind.config.ts`.
-
-| Token | Hex | Role |
+| Name | Hex | Use |
 | --- | --- | --- |
-| `night-950` | `#05070D` | Page background |
-| `night-900` | `#0A0F1C` | Raised sections, panels |
-| `night-800` | `#111A2E` | Hover, inputs on panels |
-| `night-700` | `#1B2640` | Tracks, inactive fills |
-| `night-600` | `#293758` | Strong borders |
-| `line` | `#233150` | Hairline borders |
-| `marble-50` | `#F3EEE4` | Primary text, primary buttons |
-| `marble-200` | `#D9D2C3` | Body text |
-| `marble-400` | `#9E998D` | Labels, secondary text |
-| `marble-600` | `#6B6861` | Disabled, tertiary |
-| `yes` | `#7EC4A4` | YES side (patina) |
-| `yes-soft` | `#16302C` | YES tint backgrounds |
-| `no` | `#DE846C` | NO side (terracotta) |
-| `no-soft` | `#341C1C` | NO tint backgrounds |
-| `gold` | `#B89B5E` | Risk values (liquidation), caps, focus ring. Use sparingly. |
-
-YES and NO are the only signal colors. They mean a side, never "good" or "bad" decoration. Gold marks risk and limits.
+| Paper | #FFF3F5 | Marketing background |
+| Blush | #FFDAE0 | Soft panels on paper |
+| Petal | #FFC7CF | Chevron squares in buttons |
+| Petal hot | #FF8A94 | Big numbers on dark, focus ring |
+| Acc | #FFFC8F | The action color |
+| Plum | #320713 | Primary button, logo |
+| Cocoa | #23050D | Dark cards on paper |
+| App bg | #1B0A0E | App background |
+| Mauve | #7A5E66 | Body text on paper |
+| Muted | #A8969B | Secondary text on dark |
+| Up | #34D57F | YES, profit |
+| Down | #E0344B | NO, loss |
 
 ## Type
 
-| Role | Family | Notes |
-| --- | --- | --- |
-| Display | Instrument Serif | Headlines, prices, big numbers. Italic for the second beat of a headline. |
-| UI | Geist | Body, buttons, questions. |
-| Labels | Geist Mono | Micro labels: uppercase, 11px, 0.14em tracking. Tabular figures for numbers. |
+Satoshi for everything (variable 300 to 900, static Bold and Medium in `app/fonts/` for OG images). Display at 700 with -0.04em tracking, section titles at 500, labels 11px uppercase. Numbers use `.num`. Geist Mono only for addresses and hashes.
 
-## Art direction
+## Buttons
 
-- Night sky from deep navy to black, fine stars, moonlit marble statues, fresco clouds, torn paper edges with a faint gold deckle, film grain.
-- Raster art lives in `public/art/` as WebP. Regenerate or add art with the optimizer: `node brand/scripts/optimize-art.mjs <png-dir> public/art`.
-- Section transitions use the torn edge component (`components/ui/torn-edge.tsx`).
+Radius 10. Primary buttons carry a 32px petal square with a plum chevron on the left (`<ButtonLink arrow>`). Dark on paper, light on imagery, accent for quick bets. No pills.
 
-## Shape and motion
+## Imagery
 
-- Radius: 0, 2, 4 or 6px. No fully rounded buttons or badges.
-- No decorative rules, underline bars, status dots, bullet ornaments or dot grids.
-- Motion explains state: reveals, the leverage dial, count-up payouts, the confirm ticket. Everything respects `prefers-reduced-motion`.
+Dreamy pastel 3D world: soft pink and peach blossoms, warm haze, glossy plum and petal coins and orbs embossed with the split-coin mark, low saturation, light grain. Objects sit on plain blush. All raster art is in `public/art/` and is regenerated with Codex, then optimized with:
 
-## Voice
+```bash
+node brand/scripts/optimize-art.mjs <png-dir>
+```
 
-Plain, specific, short. Say what happens and what it costs. Prefer "Pick a side" over abstractions. No hype words, no em dashes.
+## Do
+
+- Plum on paper, paper on plum.
+- Keep the halves of the mark offset exactly as drawn.
+- Lowercase in the logo, "Kondora" in running text.
+- Short, plain copy.
+
+## Don't
+
+- Rotate, stretch, outline or shadow the mark.
+- Close the gap between the halves or flip the offset.
+- Place the logo on busy imagery without a solid panel.
+- Pill shapes, dot ornaments, decorative accent lines, em dashes.
+- Statues, birds, night skies, people.

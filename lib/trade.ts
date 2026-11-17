@@ -54,3 +54,16 @@ export async function closePosition(params: ClosePositionParams): Promise<TradeR
   await wait(600);
   return { ok: true, signature: mockSignature(), shares: 0 };
 }
+
+export interface ClaimParams {
+  marketId: string;
+  side: Side;
+  owner?: string;
+}
+
+/** Stub: claim the payout of a settled position. */
+export async function claimPosition(params: ClaimParams): Promise<TradeResult> {
+  if (!params.marketId) return { ok: false, error: "Unknown market." };
+  await wait(600);
+  return { ok: true, signature: mockSignature(), shares: 0 };
+}
