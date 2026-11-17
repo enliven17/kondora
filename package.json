@@ -2,17 +2,18 @@
   "name": "kondora",
   "version": "0.1.0",
   "private": true,
+  "engines": { "node": ">=22.12.0" },
+  "workspaces": ["cli", "program", "vendor/picomatch", "vendor/bigint-buffer", "vendor/stream-json-compat"],
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "typecheck": "next typegen && tsc --noEmit",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test:security": "tsx --test scripts/security.test.mjs"
   },
   "dependencies": {
-    "@coral-xyz/anchor": "^0.30.1",
     "@gsap/react": "^2.1.2",
-    "@magicblock-labs/gum-sdk": "^3.0.10",
     "@noble/curves": "^1.9.7",
     "@solana/spl-token": "^0.4.15",
     "@solana/wallet-adapter-base": "^0.9.28",
@@ -22,6 +23,7 @@
     "@solana/wallet-adapter-solflare": "^0.6.34",
     "@solana/web3.js": "^1.99.0",
     "bs58": "^6.0.0",
+    "buffer": "^6.0.3",
     "clsx": "^2.1.1",
     "convex": "^1.50.0",
     "github-slugger": "^2.0.0",
@@ -37,6 +39,17 @@
     "remark-gfm": "^4.0.1",
     "tailwind-merge": "^2.6.1"
   },
+  "overrides": {
+    "@solflare-wallet/sdk": { "uuid": "^11.1.1" },
+    "@solana/buffer-layout-utils": { "bigint-buffer": "1.1.5-kondora.1" },
+    "jayson": { "stream-json": "3.9.0-kondora.1", "uuid": "^11.1.1" },
+    "anymatch": { "picomatch": "4.0.7-kondora.1" },
+    "fdir": { "picomatch": "4.0.7-kondora.1" },
+    "jest-util": { "picomatch": "4.0.7-kondora.1" },
+    "micromatch": { "picomatch": "4.0.7-kondora.1" },
+    "readdirp": { "picomatch": "4.0.7-kondora.1" },
+    "tinyglobby": { "picomatch": "4.0.7-kondora.1" }
+  },
   "devDependencies": {
     "@types/node": "^22.10.0",
     "@types/react": "^19.3.0",
@@ -45,9 +58,10 @@
     "eslint": "^9.39.0",
     "eslint-config-next": "16.4.6",
     "postcss": "^8.5.33",
-    "puppeteer-core": "^23.11.1",
+    "puppeteer-core": "^25.18.1",
     "sharp": "^0.35.5",
     "tailwindcss": "^3.4.19",
+    "tsx": "^4.23.15",
     "typescript": "^5.9.3"
   }
 }

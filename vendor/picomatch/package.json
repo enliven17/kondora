@@ -1,0 +1,9 @@
+{
+  "name": "picomatch",
+  "version": "4.0.7-kondora.1",
+  "private": true,
+  "description": "Picomatch 4.0.7 with a local repeated-extglob security patch",
+  "main": "index.js",
+  "sideEffects": false,
+  "license": "MIT"
+}

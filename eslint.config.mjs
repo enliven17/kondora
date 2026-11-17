@@ -12,5 +12,6 @@ export default defineConfig([
     "next-env.d.ts",
     "program/**",
     "convex/_generated/**",
+    "vendor/picomatch/**",
   ]),
 ]);

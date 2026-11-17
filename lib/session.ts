@@ -2,9 +2,11 @@
 // The secret lives in localStorage keyed by wallet: acceptable on devnet only, since a
 // session key can open and close positions but never withdraw.
 
-import { Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, type TransactionInstruction } from "@solana/web3.js";
+import { Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, TransactionInstruction } from "@solana/web3.js";
+import { Buffer } from "buffer";
 
-import { PROGRAM_ID, sessionTokenPda } from "./kondora";
+import { PROGRAM_ID, SESSION_PROGRAM_ID, sessionTokenPda } from "./kondora";
+import { Writer } from "./kondora/codec";
 
 const KEY_PREFIX = "kondora:session:v1:";
 export const SESSION_TTL_SECS = 24 * 3600;
@@ -55,33 +57,32 @@ export function readValidUntil(data: Uint8Array | null | undefined): number | nu
 
 export const isLive = (validUntil: number | null, now = Date.now() / 1000) => validUntil !== null && validUntil > now + EXPIRY_MARGIN_SECS;
 
-/** Fresh session keypair plus its create_session_v2 instruction, built with the MagicBlock gum SDK. */
+/** Encode the session program's create_session_v2 instruction locally. */
+export function sessionInstruction(owner: PublicKey, signer: PublicKey, validUntil: number): TransactionInstruction {
+  const writer = new Writer();
+  writer.bytes(Uint8Array.from([223, 233, 108, 7, 65, 194, 235, 38]));
+  writer.write({ option: "bool" }, true);
+  writer.write({ option: "i64" }, BigInt(validUntil));
+  writer.write({ option: "u64" }, BigInt(SESSION_TOP_UP_LAMPORTS));
+  return new TransactionInstruction({
+    programId: SESSION_PROGRAM_ID,
+    keys: [
+      { pubkey: sessionTokenPda(signer, owner), isSigner: false, isWritable: true },
+      { pubkey: signer, isSigner: true, isWritable: true },
+      { pubkey: owner, isSigner: true, isWritable: true },
+      { pubkey: owner, isSigner: true, isWritable: false },
+      { pubkey: PROGRAM_ID, isSigner: false, isWritable: false },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    data: Buffer.from(writer.finish()),
+  });
+}
+
+/** Fresh session keypair plus its create_session_v2 instruction. */
 export async function createSessionIx(owner: PublicKey, connection: import("@solana/web3.js").Connection): Promise<{ session: StoredSession; ix: TransactionInstruction }> {
-  const [{ SessionTokenManager }, { BN }] = await Promise.all([import("@magicblock-labs/gum-sdk"), import("@coral-xyz/anchor")]);
+  void connection;
   const keypair = Keypair.generate();
   const validUntil = Math.floor(Date.now() / 1000) + SESSION_TTL_SECS;
-  // The manager only needs a wallet to build an Anchor provider; nothing is signed through it.
-  const readOnlyWallet = {
-    publicKey: owner,
-    signTransaction: () => Promise.reject(new Error("not used")),
-    signAllTransactions: () => Promise.reject(new Error("not used")),
-  };
-  const manager = new SessionTokenManager(readOnlyWallet as never, connection as never);
-  const methods = manager.program.methods as unknown as {
-    createSessionV2: (topUp: boolean, validUntil: InstanceType<typeof BN>, lamports: InstanceType<typeof BN>) => {
-      accountsPartial: (a: Record<string, PublicKey>) => { instruction: () => Promise<TransactionInstruction> };
-    };
-  };
-  const ix = await methods
-    .createSessionV2(true, new BN(validUntil), new BN(SESSION_TOP_UP_LAMPORTS))
-    .accountsPartial({
-      sessionToken: sessionTokenPda(keypair.publicKey, owner),
-      sessionSigner: keypair.publicKey,
-      feePayer: owner,
-      authority: owner,
-      targetProgram: PROGRAM_ID,
-      systemProgram: SystemProgram.programId,
-    })
-    .instruction();
+  const ix = sessionInstruction(owner, keypair.publicKey, validUntil);
   return { session: { keypair, validUntil }, ix };
 }
