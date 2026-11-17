@@ -25,7 +25,7 @@ import { TxLink } from "./tx-link";
 
 export const SIDE_EVENT = "kondora:side";
 
-const PRESETS = [10, 25, 50, 100] as const;
+const PRESETS = [1, 5, 10, 25] as const;
 const DEFAULT_MIN_TRADE = 0.1;
 
 const CAP_NOTES: Record<CapReason, string> = {
@@ -43,15 +43,16 @@ export interface BetPanelProps {
   serverNow: number;
 }
 
-function blockReason(margin: number, minTrade: number, overBalance: boolean, priceLimitHit: boolean): string | null {
+function blockReason(margin: number, minTrade: number, overBalance: boolean, priceLimitHit: boolean, unhealthy = false): string | null {
   if (!(margin > 0)) return "Enter an amount";
   if (margin < minTrade) return `Minimum ${minTrade} USDC`;
   if (overBalance) return "Above your balance";
   if (priceLimitHit) return "Too large for this pool";
+  if (unhealthy) return "Too large at this leverage, lower the amount or leverage";
   return null;
 }
 
-export function BetPanel({ market, initialSide = "yes", initialAmount = 25, serverNow }: BetPanelProps) {
+export function BetPanel({ market, initialSide = "yes", initialAmount = 5, serverNow }: BetPanelProps) {
   const [side, setSide] = useState<Side>(initialSide);
   const [amountText, setAmountText] = useState(String(initialAmount));
   const [leverage, setLeverage] = useState(2);
@@ -91,8 +92,8 @@ export function BetPanel({ market, initialSide = "yes", initialAmount = 25, serv
   const lev = Math.min(leverage, cap);
   const margin = Number.parseFloat(amountText) || 0;
   const quote = useMemo(
-    () => quoteBet(view, side, margin, lev, live?.pool, params ? params.max_price_bps / amm.BPS : undefined),
-    [view, side, margin, lev, live?.pool, params],
+    () => quoteBet(view, side, margin, lev, live?.pool, params ? params.max_price_bps / amm.BPS : undefined, live?.floorL),
+    [view, side, margin, lev, live?.pool, params, live?.floorL],
   );
   const price = sidePrice(view, side);
   const feeRate = params ? params.fee_bps / amm.BPS : PROTOCOL.feeRate;
@@ -101,7 +102,7 @@ export function BetPanel({ market, initialSide = "yes", initialAmount = 25, serv
   const overBalance = balance !== null && margin > balance;
   const chainState = live?.account.state;
   const closed = market.state !== "open" || now >= market.closeTime || (chainState !== undefined && chainState !== 0);
-  const blocked = blockReason(margin, minTrade, overBalance, quote.priceLimitHit);
+  const blocked = blockReason(margin, minTrade, overBalance, quote.priceLimitHit, quote.unhealthy);
   const dismiss = useCallback(() => setConfirmed(null), []);
 
   if (closed) {

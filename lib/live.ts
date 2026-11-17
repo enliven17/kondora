@@ -20,6 +20,8 @@ export interface LiveMarket {
   priceYes: number;
   /** Pool with L decayed to now: feed this to quoteOpen and exitValue. */
   pool: amm.PoolState;
+  /** Liquidity at its floor: leveraged positions must stay healthy here too (program size cap). */
+  floorL: number;
   /** Unix seconds when this state was read. */
   at: number;
 }
@@ -36,7 +38,8 @@ const entries = new Map<string, Entry>();
 
 function toLive(account: MarketAccount, delegated: boolean): LiveMarket {
   const at = Date.now() / 1000;
-  return { account, delegated, priceYes: amm.cdf(account.z), pool: poolOf(account, at), at };
+  const floorL = (account.l0 * account.params.l_floor_bps) / amm.BPS;
+  return { account, delegated, priceYes: amm.cdf(account.z), pool: poolOf(account, at), floorL, at };
 }
 
 function decodeSafe(info: AccountInfo<Buffer> | null): MarketAccount | null {

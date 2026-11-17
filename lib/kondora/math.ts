@@ -145,6 +145,8 @@ export interface OpenQuote {
   priceAfter: number;
   /** Payout if the side wins and the position is held as 1x (debt repaid first). */
   maxPayout: number;
+  /** Pool z after the trade. */
+  zAfter: number;
   /** YES-side price at which this position becomes liquidatable, or null for 1x. */
   liquidationPrice: number | null;
 }
@@ -165,6 +167,7 @@ export function quoteOpen(s: PoolState, side: Side, margin: number, levBps: numb
     avgPrice: spend / r.shares,
     priceAfter: priceOf(r.z, side),
     maxPayout: r.shares - debt,
+    zAfter: r.z,
     liquidationPrice: debt > 0 ? liquidationPrice({ ...s, z: r.z }, side, r.shares, debt) : null,
   };
 }

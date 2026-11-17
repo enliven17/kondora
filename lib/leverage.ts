@@ -2,6 +2,7 @@ import {
   BPS,
   exitValue,
   liquidationPrice as programLiquidationPrice,
+  isLiquidatable,
   maxLeverageBps,
   micro,
   type PoolState,
@@ -97,6 +98,8 @@ export interface BetQuote {
   profitIfWin: number;
   /** The pool cannot fill this size (curve limit or price above 99¢). */
   priceLimitHit: boolean;
+  /** The program would reject this leveraged size: liquidatable right away or at floor liquidity. */
+  unhealthy: boolean;
 }
 
 /** Quote a bet. Pass the live on-chain pool when available; otherwise the pool is estimated from the market's price and cash. */
@@ -107,6 +110,7 @@ export function quoteBet(
   leverage: number,
   pool: PoolState = poolFor(market),
   maxSidePrice: number = PROTOCOL.maxSidePrice,
+  floorL?: number,
 ): BetQuote {
   const m = Math.max(0, margin);
   const price = sidePrice(market, side);
@@ -123,11 +127,18 @@ export function quoteBet(
     payoutIfWin: 0,
     profitIfWin: 0,
     priceLimitHit: false,
+    unhealthy: false,
   };
   if (m <= 0) return empty;
   const q = quoteOpen(pool, toProgramSide(side), micro(m), Math.round(leverage * BPS));
   if (!q) return { ...empty, priceLimitHit: true };
   const payoutIfWin = Math.max(0, usdc(q.maxPayout));
+  // Same checks as engine::open: healthy at spot after the trade, and at floor liquidity.
+  const ps = toProgramSide(side);
+  const after = { ...pool, z: q.zAfter };
+  const unhealthy =
+    q.debt > 0 &&
+    (isLiquidatable(after, ps, q.shares, q.debt) || (floorL !== undefined && floorL > 0 && isLiquidatable({ ...after, l: floorL }, ps, q.shares, q.debt)));
   return {
     margin: m,
     leverage,
@@ -141,6 +152,7 @@ export function quoteBet(
     payoutIfWin,
     profitIfWin: payoutIfWin - m,
     priceLimitHit: q.priceAfter > maxSidePrice,
+    unhealthy,
   };
 }
 
