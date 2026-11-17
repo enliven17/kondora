@@ -7,6 +7,7 @@
 
 import { chatJson, fence, INJECTION_RULE, Provider } from "./llm";
 import { getText, htmlToText, sha256Hex, canonical } from "./http";
+import { isTrustedSource } from "./sources/trusted";
 import { searchNews } from "./sources/news";
 import { DAY, Evidence, Resolution, nowSec } from "./types";
 
@@ -27,7 +28,7 @@ export const PANEL: Panelist[] = [
 export async function gatherEvidence(question: string, sources: string[], at = nowSec()): Promise<Evidence[]> {
   const ev: Evidence[] = [];
   for (const url of sources.slice(0, 4)) {
-    if (!/^https:\/\//.test(url)) continue;
+    if (!isTrustedSource(url)) continue;
     try {
       ev.push({ source: new URL(url).hostname, url, fetchedAt: at, excerpt: htmlToText(await getText(url)).slice(0, 3000) });
     } catch {
@@ -79,10 +80,9 @@ The market closed at ${new Date(opts.closeTime * 1000).toISOString()}. Only even
 If the evidence does not establish the outcome, report a probability near 0.5. Never use memory alone for facts after your training data.
 ${INJECTION_RULE}
 Answer as JSON: {"probability": number between 0 and 1, "reasoning": "two to four sentences citing evidence numbers"}`,
-        user: `Question: ${opts.question}
-Rules:
-${opts.rules.map((r) => `- ${r}`).join("\n")}
-Resolution criteria: ${opts.criteria}
+        user: `${fence("question", opts.question, 400)}
+${fence("rules", opts.rules.map((r) => `- ${r}`).join("\n"), 2000)}
+${fence("criteria", opts.criteria, 800)}
 Earlier council reports:
 ${prior}
 Evidence:

@@ -90,10 +90,11 @@ export const get = query({
   handler: async (ctx, { id }) => {
     const m = await byPublicId(ctx, id);
     if (!m) return null;
-    const ticks = await ctx.db.query("ticks").withIndex("by_market_t", (q) => q.eq("marketId", m._id)).collect();
+    // Bounded reads: the latest ticks, trail and verdicts only.
+    const ticks = (await ctx.db.query("ticks").withIndex("by_market_t", (q) => q.eq("marketId", m._id)).order("desc").take(600)).reverse();
     const history = ticks.length ? ticks.map(({ t, p, v }) => ({ t, p, v })) : [{ t: m.openTime, p: m.initialPriceYes, v: 0 }];
-    const trail = await ctx.db.query("trail").withIndex("by_market", (q) => q.eq("marketId", m._id)).collect();
-    const verdicts = await ctx.db.query("verdicts").withIndex("by_market", (q) => q.eq("marketId", m._id)).collect();
+    const trail = (await ctx.db.query("trail").withIndex("by_market", (q) => q.eq("marketId", m._id)).order("desc").take(50)).reverse();
+    const verdicts = (await ctx.db.query("verdicts").withIndex("by_market", (q) => q.eq("marketId", m._id)).order("desc").take(20)).reverse();
     return {
       ...toUi(m, history),
       chainId: m.chainId,

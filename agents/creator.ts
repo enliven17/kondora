@@ -8,6 +8,7 @@ import { sportsCandidates } from "./sources/sports";
 import { polymarketCandidates } from "./sources/polymarket";
 import { esportsCandidates } from "./sources/esports";
 import { headlines } from "./sources/news";
+import { isTrustedSource, TRUSTED_HINT } from "./sources/trusted";
 import { Candidate, Category, DAY, nowSec } from "./types";
 
 export const CATEGORIES: Category[] = ["crypto", "macro", "sports", "esports", "politics", "world", "tech", "culture"];
@@ -106,7 +107,7 @@ async function newsQuestions(max: number): Promise<Candidate[]> {
 Write up to ${max} questions. Each must:
 - be a forward-looking YES/NO question that is genuinely uncertain (probability between 0.1 and 0.9),
 - settle objectively from public reporting between 1 and 14 days from now, with an explicit deadline in the question,
-- name what counts as YES in "criteria" and list 1 to 3 https source URLs to check (official sites or major outlets),
+- name what counts as YES in "criteria" and list 1 to 3 https source URLs to check, only from these domains: ${TRUSTED_HINT},
 - avoid death, violence against people, health of individuals, or anything defamatory,
 - use plain neutral wording, no em dashes.
 Categories: ${CATEGORIES.join(", ")}.
@@ -118,7 +119,8 @@ JSON: {"markets":[{"question":string,"category":string,"closeTime":"ISO 8601","p
   for (const g of r.data.markets ?? []) {
     const close = Math.floor(Date.parse(g.closeTime) / 1000);
     if (!close || !g.question || !g.criteria) continue;
-    const sources = (g.sources ?? []).filter((s) => /^https:\/\//.test(s)).slice(0, 3);
+    const sources = (g.sources ?? []).filter(isTrustedSource).slice(0, 3);
+    if (!sources.length) continue; // no checkable source from a trusted outlet
     out.push({
       question: g.question.trim(),
       summary: (g.summary ?? "").slice(0, 180),

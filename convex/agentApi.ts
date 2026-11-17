@@ -157,7 +157,15 @@ export const buildTx = internalAction({
           ixs = [ix.openPosition({ signer, authority: owner, marketId, side, margin, levBps: BigInt(levBps), minShares, sessionToken })];
         } else {
           const fractionBps = BigInt(Math.round(Math.min(Math.max(a.fraction ?? 1, 0.0001), 1) * 10_000));
-          ixs = [ix.closePosition({ signer, authority: owner, marketId, side, fractionBps, minOut: 0n, sessionToken })];
+          // Slippage bound from the live exit value (the program requires one for session keys).
+          const userInfo = (await erConnection().getAccountInfo(userPda(owner)).catch(() => null)) ?? (await baseConnection().getAccountInfo(userPda(owner)));
+          const pos = userInfo ? decodeUser(userInfo.data).positions.find((p) => p.market_id === marketId && p.side === side && p.shares > 0n) : undefined;
+          if (!pos) throw new Error("no open position on that side");
+          const shares = Number((pos.shares * fractionBps) / 10_000n);
+          const value = amm.exitValue(poolOf(live).pool, side, shares);
+          const owed = (Number(pos.debt + pos.accrued) * Number(fractionBps)) / 10_000;
+          const minOut = BigInt(Math.max(1, Math.floor(((value - owed) * (10_000 - slip)) / 10_000)));
+          ixs = [ix.closePosition({ signer, authority: owner, marketId, side, fractionBps, minOut, sessionToken })];
         }
         break;
       }
@@ -171,7 +179,8 @@ export const buildTx = internalAction({
     return {
       transaction: tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString("base64"),
       layer,
-      rpc: layer === "er" ? process.env.ER_RPC ?? ENDPOINTS.er : process.env.SOLANA_RPC ?? ENDPOINTS.base,
+      // Public endpoints only: the backend's private RPC URL is never returned.
+      rpc: layer === "er" ? ENDPOINTS.er : ENDPOINTS.base,
       signers: [...new Set([signer.toBase58(), ...(a.action === "open" || a.action === "close" || a.action === "claim" ? [] : [owner.toBase58()])])],
       note: layer === "er" ? "Send to the ER endpoint with skipPreflight: true." : "Send to Solana devnet.",
     };

@@ -15,13 +15,56 @@ export async function getJson<T>(url: string, timeoutMs = 15_000, headers: Recor
   }
 }
 
+const MAX_BYTES = 1_000_000;
+
+/** Rejects hosts that could reach private infrastructure (SSRF). */
+export function isPublicHttpsUrl(raw: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    return false;
+  }
+  if (u.protocol !== "https:" || u.username || u.password || (u.port && u.port !== "443")) return false;
+  const h = u.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".internal") || !h.includes(".")) return false;
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(h) || h.includes(":")) return false; // no IP literals at all
+  return true;
+}
+
+/** Fetches text with manual redirects (each hop re-checked), a timeout and a size cap. */
 export async function getText(url: string, timeoutMs = 15_000): Promise<string> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const r = await fetch(url, { headers: { "user-agent": UA }, signal: ctrl.signal });
-    if (!r.ok) throw new Error(`${r.status} ${url}`);
-    return await r.text();
+    let next = url;
+    for (let hop = 0; hop < 4; hop++) {
+      if (!isPublicHttpsUrl(next)) throw new Error(`blocked url ${next}`);
+      const r = await fetch(next, { headers: { "user-agent": UA }, signal: ctrl.signal, redirect: "manual" });
+      if (r.status >= 300 && r.status < 400) {
+        const loc = r.headers.get("location");
+        if (!loc) throw new Error(`redirect without location ${next}`);
+        next = new URL(loc, next).toString();
+        continue;
+      }
+      if (!r.ok) throw new Error(`${r.status} ${next}`);
+      if (!r.body) return "";
+      const reader = r.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let size = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.length;
+        if (size > MAX_BYTES) {
+          await reader.cancel();
+          break;
+        }
+        chunks.push(value);
+      }
+      return new TextDecoder().decode(Buffer.concat(chunks.map((c) => Buffer.from(c))));
+    }
+    throw new Error(`too many redirects ${url}`);
   } finally {
     clearTimeout(t);
   }

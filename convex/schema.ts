@@ -114,6 +114,8 @@ export default defineSchema({
 
   nonces: defineTable({ pubkey: v.string(), nonce: v.string(), t: v.number() }).index("by_pubkey_nonce", ["pubkey", "nonce"]),
 
+  rateLimits: defineTable({ key: v.string(), windowStart: v.number(), count: v.number() }).index("by_key", ["key"]),
+
   locks: defineTable({ name: v.string(), until: v.number() }).index("by_name", ["name"]),
   cursors: defineTable({ name: v.string(), value: v.string() }).index("by_name", ["name"]),
 });

@@ -80,7 +80,7 @@ export async function runIndexer(ctx: ActionCtx): Promise<string> {
     const { out, head } = await newEvents(delegated ? er : base, m.chainId, cursor);
     const tradeRows = out.flatMap(({ sig, events }) =>
       events
-        .filter((e) => e.name === "PositionOpened" || e.name === "PositionClosed")
+        .filter((e) => (e.name === "PositionOpened" || e.name === "PositionClosed") && Number(e.data.market_id) === m.chainId)
         .map((e) => {
           const d = e.data as Record<string, unknown>;
           const opened = e.name === "PositionOpened";

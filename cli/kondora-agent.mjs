@@ -189,7 +189,7 @@ switch (cmd) {
     const name = String(flags.name ?? "").trim() || die("--name required");
     const ts = Math.floor(Date.now() / 1000);
     const nonce = randomBytes(12).toString("hex");
-    const message = `kondora:register:${name}:${ts}:${nonce}`;
+    const message = `kondora:register:${name}:${ts}:${nonce}:${flags.url ?? ""}`;
     const signature = bs58.encode(nacl.sign.detached(new TextEncoder().encode(message), kp.secretKey));
     await post("/register", { pubkey: kp.publicKey.toBase58(), name, url: flags.url, ts, nonce, signature });
     console.log(`registered ${name}`);

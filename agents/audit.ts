@@ -32,7 +32,7 @@ export async function auditProposal(m: OracleInput, proposed: Exclude<Verdict, "
 Market closed ${new Date(m.closeTime * 1000).toISOString()}. Use "invalid" only if the rules say so or the event cannot be determined.
 Use "pending" if evidence is insufficient. ${INJECTION_RULE}
 JSON: {"verdict":"yes"|"no"|"invalid"|"pending","confidence":0..1,"reasoning":"short"}`,
-      user: `Question: ${m.question}\nRules:\n${m.rules.map((x) => `- ${x}`).join("\n")}\nCriteria: ${m.resolution.criteria}\nEvidence:\n${evidence
+      user: `${fence("question", m.question, 400)}\n${fence("rules", m.rules.map((x) => `- ${x}`).join("\n"), 2000)}\n${fence("criteria", m.resolution.criteria, 800)}\nEvidence:\n${evidence
         .map((e, i) => fence(`${i + 1} ${e.source}`, e.excerpt, 1200))
         .join("\n")}`,
     });

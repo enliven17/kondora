@@ -207,12 +207,26 @@ export function decodeEvent(data: Uint8Array): { name: string; data: Record<stri
   return null;
 }
 
-/** Parses `Program data: <base64>` lines emitted by `emit!`. */
-export function eventsFromLogs(logs: string[]): { name: string; data: Record<string, unknown> }[] {
+/**
+ * Parses `Program data: <base64>` lines emitted by `emit!`, only while the
+ * Kondora program itself is executing (tracked through the invoke stack), so
+ * another program cannot forge events into the feed.
+ */
+export function eventsFromLogs(logs: string[], programId: string = idl.address): { name: string; data: Record<string, unknown> }[] {
   const out: { name: string; data: Record<string, unknown> }[] = [];
+  const stack: string[] = [];
   for (const line of logs) {
+    const inv = line.match(/^Program (\w+) invoke \[\d+\]$/);
+    if (inv) {
+      stack.push(inv[1]);
+      continue;
+    }
+    if (/^Program \w+ (success|failed)/.test(line)) {
+      stack.pop();
+      continue;
+    }
     const m = line.match(/^Program data: (.+)$/);
-    if (!m) continue;
+    if (!m || stack[stack.length - 1] !== programId) continue;
     const bytes = Uint8Array.from(atob(m[1]), (c) => c.charCodeAt(0));
     const ev = decodeEvent(bytes);
     if (ev) out.push(ev);
