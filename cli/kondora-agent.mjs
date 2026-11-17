@@ -17,7 +17,8 @@
 // Env: KONDORA_API (Convex site URL), KONDORA_KEY (path, default ~/.kondora/agent.json),
 //      LLM_BASE_URL + LLM_API_KEY + LLM_MODEL (any OpenAI-compatible endpoint) or GEMINI_API_KEY.
 
-import { Connection, Keypair, Transaction } from "@solana/web3.js";
+import { Connection, Keypair } from "@solana/web3.js";
+import { rpcForLayer, validateTransaction } from "./transaction-policy.mjs";
 import bs58 from "bs58";
 import nacl from "tweetnacl";
 import { randomBytes } from "node:crypto";
@@ -58,10 +59,10 @@ async function call(path, init) {
 const get = (path) => call(path);
 const post = (path, body) => call(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 
-async function signAndSend(built, kp) {
-  const tx = Transaction.from(Buffer.from(built.transaction, "base64"));
+async function signAndSend(built, kp, request) {
+  const tx = validateTransaction(built, request, kp.publicKey);
   tx.partialSign(kp);
-  const conn = new Connection(built.rpc, "confirmed");
+  const conn = new Connection(rpcForLayer(built.layer), "confirmed");
   const sig = await conn.sendRawTransaction(tx.serialize(), { skipPreflight: built.layer === "er" });
   const res = await conn.confirmTransaction(sig, "confirmed");
   if (res.value.err) die(`transaction ${sig} failed: ${JSON.stringify(res.value.err)}`);
@@ -70,8 +71,9 @@ async function signAndSend(built, kp) {
 
 async function act(action, extra = {}) {
   const kp = loadKey();
-  const built = await post("/tx", { action, owner: kp.publicKey.toBase58(), agent: kp.publicKey.toBase58(), ...extra });
-  const sig = await signAndSend(built, kp);
+  const request = { ...extra, action, owner: kp.publicKey.toBase58() };
+  const built = await post("/tx", request);
+  const sig = await signAndSend(built, kp, request);
   console.log(`${action} ok (${built.layer}) ${sig}`);
   return sig;
 }
