@@ -23,17 +23,32 @@ export const hit = internalMutation({
   handler: async (ctx, { caller, perMinute, globalPerMinute }) => {
     const now = Date.now();
     const windowStart = now - (now % 60_000);
-    for (const [key, max] of [[`ip:${caller}`, perMinute], ["global", globalPerMinute]] as const) {
+    const buckets = [];
+    // Check every bucket before writing any. Denied requests must not allocate
+    // a new row for each spoofed caller after the global budget is exhausted.
+    for (const [key, max] of [["global", globalPerMinute], [`ip:${caller}`, perMinute]] as const) {
       const row = await ctx.db.query("rateLimits").withIndex("by_key", (q) => q.eq("key", key)).first();
+      if (row?.windowStart === windowStart && row.count >= max) return false;
+      buckets.push({ key, row });
+    }
+    for (const { key, row } of buckets) {
       if (!row || row.windowStart !== windowStart) {
         if (row) await ctx.db.patch(row._id, { windowStart, count: 1 });
         else await ctx.db.insert("rateLimits", { key, windowStart, count: 1 });
-      } else if (row.count >= max) {
-        return false;
       } else {
         await ctx.db.patch(row._id, { count: row.count + 1 });
       }
     }
     return true;
+  },
+});
+
+/** Nonces outlive the signed timestamp window; caller buckets expire as well. */
+export const cleanup = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const cutoff = Date.now() - 10 * 60_000;
+    for (const row of await ctx.db.query("rateLimits").withIndex("by_window", (q) => q.lt("windowStart", cutoff)).take(2000)) await ctx.db.delete(row._id);
+    for (const row of await ctx.db.query("nonces").withIndex("by_t", (q) => q.lt("t", cutoff)).take(2000)) await ctx.db.delete(row._id);
   },
 });

@@ -15,7 +15,9 @@ async function sparkline(ctx: QueryCtx, m: Doc<"markets">, points = 24) {
   const ticks = await ctx.db
     .query("ticks")
     .withIndex("by_market_t", (q) => q.eq("marketId", m._id).gte("t", from))
-    .collect();
+    .order("desc")
+    .take(600);
+  ticks.reverse();
   if (!ticks.length) return [{ t: m.openTime, p: m.initialPriceYes, v: 0 }, { t: nowSec(), p: m.priceYes, v: 0 }];
   const step = Math.max(1, Math.floor(ticks.length / points));
   return ticks.filter((_, i) => i % step === 0 || i === ticks.length - 1).map(({ t, p, v }) => ({ t, p, v }));

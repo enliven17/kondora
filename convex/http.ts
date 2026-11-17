@@ -32,8 +32,32 @@ const clampLimit = (raw: string | null, dflt: number) => {
 };
 
 async function body(req: Request): Promise<Record<string, unknown>> {
+  const maxBytes = 8192;
+  if (Number(req.headers.get("content-length")) > maxBytes || !req.body) throw new Error("invalid body size");
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
   try {
-    return (await req.json()) as Record<string, unknown>;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maxBytes) {
+        await reader.cancel();
+        throw new Error("body too large");
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  try {
+    const bytes = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    const parsed: unknown = JSON.parse(new TextDecoder().decode(bytes));
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("object required");
+    return parsed as Record<string, unknown>;
   } catch {
     throw new Error("invalid JSON body");
   }
@@ -155,6 +179,7 @@ http.route({
   method: "POST",
   handler: httpAction(async (ctx, req) => {
     try {
+      if (!(await allowed(ctx, req))) return tooMany();
       const b = await body(req);
       const pubkey = String(b.pubkey ?? "");
       const name = String(b.name ?? "").trim();
@@ -164,7 +189,6 @@ http.route({
       if (!/^[A-Za-z0-9]{8,64}$/.test(nonce)) throw new Error("nonce must be 8 to 64 alphanumerics");
       if (!Number.isFinite(ts) || Math.abs(Date.now() / 1000 - ts) > 300) throw new Error("ts must be within 5 minutes");
       if (/kondora|oracle|creator|auditor|admin|arbiter|council/i.test(name)) throw new Error("that name is reserved");
-      if (!(await allowed(ctx, req))) return tooMany();
       const message = `kondora:register:${name}:${ts}:${nonce}:${b.url ? String(b.url) : ""}`;
       const okSig = await ctx.runAction(internal.agentApi.verifySignature, { pubkey, message, signature: String(b.signature ?? "") });
       if (!okSig) throw new Error("bad signature");

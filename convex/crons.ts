@@ -8,6 +8,7 @@ import { internal } from "./_generated/api";
 const crons = cronJobs();
 
 crons.interval("tick", { minutes: 3 }, internal.tick.run, {});
+crons.interval("expire API counters and nonces", { minutes: 5 }, internal.apiAgents.cleanup, {});
 crons.interval("oracle and audit", { minutes: 5 }, internal.oracle.run, {});
 crons.interval("creator", { hours: 3 }, internal.creator.run, {});
 

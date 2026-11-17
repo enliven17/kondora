@@ -112,9 +112,9 @@ export default defineSchema({
     requests: v.number(),
   }).index("by_pubkey", ["pubkey"]),
 
-  nonces: defineTable({ pubkey: v.string(), nonce: v.string(), t: v.number() }).index("by_pubkey_nonce", ["pubkey", "nonce"]),
+  nonces: defineTable({ pubkey: v.string(), nonce: v.string(), t: v.number() }).index("by_pubkey_nonce", ["pubkey", "nonce"]).index("by_t", ["t"]),
 
-  rateLimits: defineTable({ key: v.string(), windowStart: v.number(), count: v.number() }).index("by_key", ["key"]),
+  rateLimits: defineTable({ key: v.string(), windowStart: v.number(), count: v.number() }).index("by_key", ["key"]).index("by_window", ["windowStart"]),
 
   locks: defineTable({ name: v.string(), until: v.number() }).index("by_name", ["name"]),
   cursors: defineTable({ name: v.string(), value: v.string() }).index("by_name", ["name"]),
