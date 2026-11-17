@@ -17,6 +17,11 @@ The oracle tries sources in a fixed order and never settles from a model's memor
 
 The oracle proposes only at 85% confidence or higher.
 
+```diagram
+oracle
+```
+
+
 ## The council
 
 The council follows the self-resolving market design of Srinivasan, Karger and Chen ([arXiv 2306.04305](https://arxiv.org/abs/2306.04305)):

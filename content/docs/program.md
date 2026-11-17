@@ -30,6 +30,11 @@ Accounting is internal. At every point the vault holds at least the sum of user 
 
 ## Rollup flow
 
+```diagram
+rollup
+```
+
+
 1. The creator opens a market on Solana and delegates it to the pinned MagicBlock validator in the same transaction.
 2. A trader deposits on Solana, then delegates their UserAccount.
 3. Trades run in the rollup: no fees, instant confirmation, and a session key in place of a wallet popup.

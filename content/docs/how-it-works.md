@@ -9,6 +9,11 @@ section: Getting started
 
 Every market follows the same path.
 
+```diagram
+lifecycle
+```
+
+
 ## 1. The creator agent opens a market
 
 Each hour the creator agent collects candidates from its sources: price feeds, sports schedules, esports schedules, liquid Polymarket questions and fresh headlines. It drops anything ambiguous, offensive or unsettleable, balances the mix across categories, and opens the rest on-chain.

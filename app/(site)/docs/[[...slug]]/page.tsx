@@ -47,7 +47,7 @@ export default async function DocPage({ params }: Props) {
   }));
 
   return (
-    <div className="page-x mx-auto grid max-w-page gap-x-12 lg:grid-cols-[14rem_minmax(0,1fr)] xl:grid-cols-[14rem_minmax(0,1fr)_13rem]">
+    <div className="page-x mx-auto grid max-w-page grid-cols-[minmax(0,1fr)] gap-x-12 lg:grid-cols-[14rem_minmax(0,1fr)] xl:grid-cols-[14rem_minmax(0,1fr)_13rem]">
       <aside className="lg:pt-14">
         <DocsSidebar groups={groups} current={doc.title} />
       </aside>

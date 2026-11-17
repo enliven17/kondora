@@ -19,6 +19,11 @@ Kondora prices outcomes with the pm-AMM, a market maker that Paradigm designed f
 
 where `Phi` and `phi` are the standard normal CDF and density, and `L` is the pool's liquidity. The YES price is `Phi(z)` with `z = (y - x) / L`.
 
+```diagram
+amm
+```
+
+
 Two properties matter for traders:
 
 - **Price impact is smooth near 50% and grows in the tails.** This fits how outcome tokens behave.

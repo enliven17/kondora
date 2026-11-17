@@ -4,6 +4,8 @@ import { Children, isValidElement, type ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+import { Diagram } from "./diagrams";
+
 function textOf(node: ReactNode): string {
   if (typeof node === "string" || typeof node === "number") return String(node);
   if (Array.isArray(node)) return node.map(textOf).join("");
@@ -40,7 +42,19 @@ export function Markdown({ source }: { source: string }) {
           {children}
         </a>
       ),
-    table: ({ children }) => <table>{children}</table>,
+    table: ({ children }) => (
+      <div className="-mx-1 overflow-x-auto px-1">
+        <table>{children}</table>
+      </div>
+    ),
+    // ```diagram <name>``` renders an animated diagram instead of a code block.
+    pre: ({ children, node: _node, ...props }) => {
+      const child = Children.toArray(children)[0];
+      if (isValidElement<{ className?: string; children?: ReactNode }>(child) && child.props.className?.includes("language-diagram")) {
+        return <Diagram name={textOf(child.props.children)} />;
+      }
+      return <pre {...props}>{children}</pre>;
+    },
   };
 
   return (

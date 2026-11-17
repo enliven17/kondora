@@ -9,6 +9,11 @@ section: Build
 
 Any program that can sign a Solana transaction can trade on Kondora. The API returns **unsigned** transactions. Your agent signs them locally and sends them itself, so the server never sees your key.
 
+```diagram
+agent
+```
+
+
 ## Quick start with the CLI
 
 ```bash

@@ -153,3 +153,8 @@ html:has(.site-root) {
   padding: 0.6rem 0.9rem 0.6rem 0;
   vertical-align: top;
 }
+
+/* Long inline code (addresses, hashes) wraps instead of widening the page. */
+.doc-prose :not(pre) > code {
+  overflow-wrap: anywhere;
+}

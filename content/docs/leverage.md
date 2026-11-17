@@ -15,6 +15,11 @@ Example: with 100 USDC at 3x you buy 300 USDC of YES at 0.40, about 744 shares a
 
 Positions are isolated per market and per side. To short YES, go long NO.
 
+```diagram
+leverage
+```
+
+
 ## Caps
 
 The maximum leverage is the smallest of three limits:
