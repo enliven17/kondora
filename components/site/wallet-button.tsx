@@ -22,7 +22,7 @@ export interface WalletButtonProps {
 }
 
 /** Connect button styled with Kondora tokens. Opens the wallet-adapter modal. */
-export function WalletButton({ className, variant = "secondary", size = "sm", label = "Connect wallet" }: WalletButtonProps) {
+export function WalletButton({ className, variant = "outline", size = "sm", label = "Connect wallet" }: WalletButtonProps) {
   const { publicKey, connecting, disconnect, wallet } = useWallet();
   const { setVisible } = useWalletModal();
   const [open, setOpen] = useState(false);

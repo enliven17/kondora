@@ -87,7 +87,7 @@ export function PositionsTable({ positions, markets }: { positions: Position[]; 
           <p className="text-sm text-marble-200">
             You are viewing demo positions. Connect a wallet to see your own on devnet.
           </p>
-          <WalletButton variant="primary" size="md" />
+          <WalletButton variant="dark" size="md" />
         </div>
       )}
 

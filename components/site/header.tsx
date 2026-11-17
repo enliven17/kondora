@@ -127,7 +127,7 @@ export function SiteHeader() {
               ))}
             </ul>
             <div className="mt-8">
-              <WalletButton variant="primary" size="lg" className="w-full" />
+              <WalletButton variant="dark" size="lg" className="w-full" />
             </div>
           </motion.nav>
         )}
