@@ -10,6 +10,7 @@ import { PriceChart } from "@/components/markets/price-chart";
 import { PriceImpact } from "@/components/markets/price-impact";
 import { unixNow } from "@/lib/clock";
 import { getMarket, getMarketActivity, getRelatedMarkets, toListItem } from "@/lib/data";
+import { preconnectChain } from "@/lib/preconnect";
 import type { Side } from "@/lib/types";
 
 export const revalidate = 60;
@@ -30,6 +31,7 @@ function parseAmount(value: string | string[] | undefined) {
 }
 
 export default async function MarketPage({ params, searchParams }: PageProps<"/markets/[id]">) {
+  preconnectChain(); // the bet panel and chart read live market state right after hydration
   const [{ id }, query] = await Promise.all([params, searchParams]);
   const market = await getMarket(id);
   if (!market) notFound();
@@ -51,7 +53,7 @@ export default async function MarketPage({ params, searchParams }: PageProps<"/m
         <div
           id="bet"
           data-lenis-prevent
-          className="thin-scrollbar scroll-mt-[calc(var(--app-header-h)+1rem)] lg:sticky lg:top-[calc(var(--app-header-h)+1rem)] lg:max-h-[calc(100dvh-var(--app-header-h)-var(--app-status-h)-2rem)] lg:overflow-y-auto lg:rounded-xl"
+          className="scroll-mt-[calc(var(--app-header-h)+1rem)] lg:self-start lg:rounded-xl [@media(min-width:1024px)_and_(min-height:960px)]:sticky [@media(min-width:1024px)_and_(min-height:960px)]:top-[calc(var(--app-header-h)+1rem)]"
         >
           <BetPanel market={toListItem(market)} initialSide={initialSide} initialAmount={initialAmount} serverNow={serverNow} />
         </div>

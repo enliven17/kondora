@@ -76,7 +76,7 @@ const TABS: Tab[] = [
   },
   {
     title: "Sealed evidence",
-    body: "Every outcome ships with the sha256 of its evidence bundle: sources, fetch times, excerpts and panel reports. The hash lives on-chain next to the result.",
+    body: "Each outcome ships with the sha256 of its evidence bundle: sources, fetch times, excerpts and panel reports. The hash lives on-chain next to the result.",
     card: {
       eyebrow: "Proposal",
       caption: "Market",

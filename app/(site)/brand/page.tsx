@@ -46,6 +46,16 @@ const IMAGERY = [
   { src: "/art/cat/world.webp", alt: "World category object" },
 ] as const;
 
+const SOCIAL = [
+  { file: "social/x-banner.png", label: "X banner", size: "1500 x 500", wide: true },
+  { file: "social/linkedin-banner.png", label: "LinkedIn banner", size: "1584 x 396", wide: true },
+  { file: "social/og-default.png", label: "Share card", size: "1200 x 630", wide: true },
+  { file: "social/avatar-plum.png", label: "Avatar, plum", size: "1024 and 400", small: "social/avatar-plum-400.png" },
+  { file: "social/avatar-petal.png", label: "Avatar, petal", size: "1024 and 400", small: "social/avatar-petal-400.png" },
+  { file: "social/avatar-art.png", label: "Avatar, render", size: "1024 and 400", small: "social/avatar-art-400.png" },
+  { file: "social/paper-card.png", label: "Post card", size: "1200 x 1200" },
+] as const;
+
 function Section({ id, title, intro, children }: { id: string; title: string; intro: string; children: ReactNode }) {
   return (
     <section aria-labelledby={id} className="border-t border-cocoa/10 py-14">
@@ -106,7 +116,7 @@ export default function BrandPage() {
 
         <Section id="type" title="Type" intro="Satoshi for everything, from 300 to 900. Geist Mono only for addresses and hashes. Numbers are tabular.">
           <div className="space-y-6 rounded-xl bg-white/60 p-6 sm:p-8">
-            <p className="text-[clamp(2.5rem,7vw,4.5rem)] font-bold leading-none tracking-[-0.045em] text-cocoa">Every outcome has a price.</p>
+            <p className="text-[clamp(2.5rem,7vw,4.5rem)] font-bold leading-none tracking-[-0.045em] text-cocoa">Trade what happens next.</p>
             <p className="text-2xl font-medium tracking-[-0.03em] text-cocoa">Section titles are Satoshi Medium, large and tight.</p>
             <p className="max-w-xl leading-relaxed text-mauve">Body copy is Satoshi Regular in mauve on paper. Short sentences, plain words, no hype.</p>
             <div className="flex flex-wrap items-baseline gap-x-10 gap-y-3 border-t border-cocoa/10 pt-6">
@@ -139,6 +149,26 @@ export default function BrandPage() {
               </li>
             ))}
           </ul>
+        </Section>
+
+        <Section id="social" title="Social" intro="Profile pictures, banners and share cards, ready to upload. The X banner keeps its copy on the right so the avatar never covers it.">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {SOCIAL.map((s) => (
+              <figure key={s.file} className={"overflow-hidden rounded-lg border border-cocoa/10 bg-paper" + ("wide" in s ? " sm:col-span-2 xl:col-span-3" : "")}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={`/brand/${s.file}`} alt={s.label} loading="lazy" className="block h-auto w-full" />
+                <figcaption className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5">
+                  <span className="text-sm font-medium text-cocoa">
+                    {s.label} <span className="num text-xs font-normal text-mauve">{s.size}</span>
+                  </span>
+                  <span className="flex gap-1">
+                    <Download file={s.file} label="PNG" />
+                    {"small" in s && <Download file={s.small} label="400px" />}
+                  </span>
+                </figcaption>
+              </figure>
+            ))}
+          </div>
         </Section>
 
         <Section id="rules" title="Do and don't" intro="A few rules that keep the brand recognizable.">

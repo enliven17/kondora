@@ -127,40 +127,24 @@ html[data-splash="seen"] [data-splash-root] {
   display: none;
 }
 
-/* Wallet adapter modal, restyled to Kondora tokens */
-.wallet-adapter-modal-wrapper {
-  background: rgb(var(--panel)) !important;
-  border: 1px solid rgb(var(--line) / 0.1);
-  border-radius: 6px !important;
-  box-shadow: 0 24px 80px rgb(0 0 0 / 0.6) !important;
-  font-family: var(--font-sans), system-ui, sans-serif !important;
+/* Route transitions (app/template.tsx, app/(app)/template.tsx): no fill, so the transform clears at rest. */
+@keyframes route-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0);
+  }
 }
-.wallet-adapter-modal-title {
-  font-family: var(--font-sans), system-ui, sans-serif !important;
-  font-weight: 600 !important;
-  font-size: 28px !important;
-  color: rgb(var(--fg)) !important;
+@keyframes route-in-app {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
 }
-.wallet-adapter-modal-overlay {
-  background: rgb(var(--ink) / 0.8) !important;
-  backdrop-filter: blur(6px);
+.route-in {
+  animation: route-in 0.42s cubic-bezier(0.23, 1, 0.32, 1);
 }
-.wallet-adapter-modal-button-close {
-  border-radius: 4px !important;
-  background: rgb(var(--cocoa)) !important;
-}
-.wallet-adapter-modal-list .wallet-adapter-button {
-  border-radius: 4px !important;
-  font-family: var(--font-sans), system-ui, sans-serif !important;
-  font-weight: 500 !important;
-}
-.wallet-adapter-modal-list .wallet-adapter-button:not([disabled]):hover {
-  background: rgb(var(--cocoa)) !important;
-}
-.wallet-adapter-modal-list-more {
-  font-family: var(--font-mono), monospace !important;
-  font-size: 12px !important;
-  color: rgb(var(--muted)) !important;
+.route-in-app {
+  animation: route-in-app 0.28s cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -202,4 +186,38 @@ html[data-splash="seen"] [data-splash-root] {
   to {
     background-position: -50% 0;
   }
+}
+
+/* Scrollbars: thin, no track, quiet thumb. Paper pages use plum, the app uses light. */
+:root {
+  --scroll-thumb: rgb(var(--plum) / 0.22);
+  --scroll-thumb-hover: rgb(var(--plum) / 0.4);
+}
+html:has([data-app-shell]) {
+  --scroll-thumb: rgb(var(--fg) / 0.14);
+  --scroll-thumb-hover: rgb(var(--fg) / 0.28);
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) transparent;
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scroll-thumb-hover);
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
 }

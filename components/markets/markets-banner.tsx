@@ -16,10 +16,10 @@ export function MarketsBanner() {
       <div aria-hidden="true" className="absolute inset-0 -z-10 bg-gradient-to-r from-plum/85 via-plum/45 to-transparent" />
       <div className="flex min-h-[13rem] flex-col justify-end p-5 sm:min-h-[15.5rem] sm:p-8">
         <h1 id="banner-title" className="max-w-[12ch] text-[clamp(2rem,5vw,3.5rem)] font-bold leading-[0.95] tracking-[-0.04em] text-fg">
-          Every outcome has a price
+          Trade what happens next
         </h1>
         <p className="mt-3 max-w-md text-sm leading-relaxed text-fg/85">
-          Take YES or NO on live markets with up to 5x leverage. Agents open and settle every one, and bets fill instantly.
+          YES or NO on live markets, up to 5x. Agents open and settle them, and bets fill instantly.
         </p>
       </div>
     </section>
