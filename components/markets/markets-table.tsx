@@ -3,10 +3,12 @@
 import { useMemo, useState } from "react";
 
 import { Panel } from "@/components/ui/panel";
+import { useLiveMarketList } from "@/hooks/use-convex-live";
 import { CATEGORY_META } from "@/lib/categories";
 import { CATEGORIES, type Category, type Market, type SortKey } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { MarketRow } from "./market-row";
+import { NoMarkets } from "./no-markets";
 
 const SORTS: Array<{ value: SortKey; label: string }> = [
   { value: "trending", label: "Volume" },
@@ -41,7 +43,8 @@ function Chevron() {
 const selectClass =
   "h-9 cursor-pointer appearance-none bg-transparent pr-6 text-sm font-semibold text-cocoa focus:outline-none focus-visible:underline [&>option]:bg-paper [&>option]:text-cocoa";
 
-export function MarketsTable({ markets, initialCategory, serverNow }: { markets: Market[]; initialCategory?: Category; serverNow: number }) {
+export function MarketsTable({ markets: initial, initialCategory, serverNow }: { markets: Market[]; initialCategory?: Category; serverNow: number }) {
+  const markets = useLiveMarketList(initial);
   const [category, setCategory] = useState<Filter>(initialCategory ?? "all");
   const [sort, setSort] = useState<SortKey>("trending");
   const [amount, setAmount] = useState<number>(QUICK_AMOUNTS[1]);
@@ -132,7 +135,9 @@ export function MarketsTable({ markets, initialCategory, serverNow }: { markets:
         <span className="w-[8.875rem] text-right">Bet</span>
       </div>
 
-      {visible.length > 0 ? (
+      {markets.length === 0 ? (
+        <NoMarkets />
+      ) : visible.length > 0 ? (
         <ul className="divide-y divide-line/[0.07]">
           {visible.map((m) => (
             <MarketRow key={m.id} market={m} amount={amount} serverNow={serverNow} />

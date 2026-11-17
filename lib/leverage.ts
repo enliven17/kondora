@@ -54,14 +54,29 @@ export function poolFor(market: Pick<Market, "yesPrice" | "liquidity">): PoolSta
 
 export type CapReason = "max" | "time" | "price" | "reduce-only";
 
+/** Risk parameters that drive the leverage cap. Defaults to PROTOCOL; pass the market's on-chain params when known. */
+export interface CapParams {
+  maxLevBps: number;
+  tau0: number;
+  reduceOnlySecs: number;
+}
+
+const DEFAULT_CAP: CapParams = { maxLevBps: PROTOCOL.maxLevBps, tau0: PROTOCOL.tau0, reduceOnlySecs: PROTOCOL.reduceOnlySecs };
+
 /** Live leverage cap from the program's maxLeverageBps, floored to 0.1x. */
-export function leverageCap(yesPrice: number, closeTime: number, now = Date.now() / 1000): { cap: number; reason: CapReason } {
+export function leverageCap(
+  yesPrice: number,
+  closeTime: number,
+  now = Date.now() / 1000,
+  params: CapParams = DEFAULT_CAP,
+): { cap: number; reason: CapReason } {
   const tau = closeTime - now;
-  if (tau <= PROTOCOL.reduceOnlySecs) return { cap: 1, reason: "reduce-only" };
-  const bps = maxLeverageBps(PROTOCOL.maxLevBps, tau, PROTOCOL.tau0, yesPrice, PROTOCOL.reduceOnlySecs);
+  if (tau <= params.reduceOnlySecs) return { cap: 1, reason: "reduce-only" };
+  const bps = maxLeverageBps(params.maxLevBps, tau, params.tau0, yesPrice, params.reduceOnlySecs);
   const cap = Math.max(1, Math.floor((bps / BPS) * 10) / 10);
-  if (cap >= PROTOCOL.maxLeverage) return { cap: PROTOCOL.maxLeverage, reason: "max" };
-  const byTime = 1 + 4 * Math.min(tau / PROTOCOL.tau0, 1);
+  const maxLev = params.maxLevBps / BPS;
+  if (cap >= maxLev) return { cap: maxLev, reason: "max" };
+  const byTime = 1 + (maxLev - 1) * Math.min(tau / params.tau0, 1);
   const byPrice = 1 + 8 * Math.min(yesPrice, 1 - yesPrice);
   return { cap, reason: byTime <= byPrice ? "time" : "price" };
 }
@@ -84,7 +99,15 @@ export interface BetQuote {
   priceLimitHit: boolean;
 }
 
-export function quoteBet(market: Pick<Market, "yesPrice" | "liquidity">, side: Side, margin: number, leverage: number): BetQuote {
+/** Quote a bet. Pass the live on-chain pool when available; otherwise the pool is estimated from the market's price and cash. */
+export function quoteBet(
+  market: Pick<Market, "yesPrice" | "liquidity">,
+  side: Side,
+  margin: number,
+  leverage: number,
+  pool: PoolState = poolFor(market),
+  maxSidePrice: number = PROTOCOL.maxSidePrice,
+): BetQuote {
   const m = Math.max(0, margin);
   const price = sidePrice(market, side);
   const empty: BetQuote = {
@@ -102,7 +125,7 @@ export function quoteBet(market: Pick<Market, "yesPrice" | "liquidity">, side: S
     priceLimitHit: false,
   };
   if (m <= 0) return empty;
-  const q = quoteOpen(poolFor(market), toProgramSide(side), micro(m), Math.round(leverage * BPS));
+  const q = quoteOpen(pool, toProgramSide(side), micro(m), Math.round(leverage * BPS));
   if (!q) return { ...empty, priceLimitHit: true };
   const payoutIfWin = Math.max(0, usdc(q.maxPayout));
   return {
@@ -117,7 +140,7 @@ export function quoteBet(market: Pick<Market, "yesPrice" | "liquidity">, side: S
     liqPrice: q.liquidationPrice,
     payoutIfWin,
     profitIfWin: payoutIfWin - m,
-    priceLimitHit: q.priceAfter > PROTOCOL.maxSidePrice,
+    priceLimitHit: q.priceAfter > maxSidePrice,
   };
 }
 
@@ -144,10 +167,9 @@ export interface PositionView {
   liqPrice: number | null;
 }
 
-export function valuePosition(position: Position, market: Pick<Market, "yesPrice" | "liquidity">): PositionView {
-  const pool = poolFor(market);
+export function valuePosition(position: Position, market: Pick<Market, "yesPrice" | "liquidity">, pool: PoolState = poolFor(market)): PositionView {
   const side = toProgramSide(position.side);
-  const mark = sidePrice(market, position.side);
+  const mark = priceOf(pool.z, side);
   const value = usdc(exitValue(pool, side, micro(position.shares)));
   const equity = value - position.debt - position.accrued;
   const pnl = equity - position.margin;

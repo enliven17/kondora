@@ -1,27 +1,32 @@
 "use client";
 
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { AnimatePresence } from "motion/react";
+import Link from "next/link";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 
 import { OutcomeLabel } from "@/components/markets/outcome-label";
 import { CountUp } from "@/components/ui/count-up";
 import { Panel, PanelHeader } from "@/components/ui/panel";
 import { useFeedback } from "@/hooks/use-feedback";
+import { useKondoraAccount } from "@/hooks/use-kondora-account";
+import { useLiveMarket } from "@/hooks/use-live-market";
 import { useNow } from "@/hooks/use-now";
 import { formatCents, formatLeverage, formatNumber, formatPct, formatUsd, formatUsdSigned } from "@/lib/format";
-import { type CapReason, leverageCap, PROTOCOL, quoteBet, sidePrice } from "@/lib/leverage";
-import { placeBet } from "@/lib/trade";
+import { amm } from "@/lib/kondora";
+import { type CapParams, type CapReason, leverageCap, PROTOCOL, quoteBet, sidePrice } from "@/lib/leverage";
+import { enableTrading, placeBet, type TxLink as TxLinkData } from "@/lib/trade";
 import type { Market, Side } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { BetConfirmation, type ConfirmedBet } from "./bet-confirmation";
+import { EnableTrading } from "./enable-trading";
 import { LeverageSlider } from "./leverage-slider";
+import { TxLink } from "./tx-link";
 
 export const SIDE_EVENT = "kondora:side";
 
-const DEMO_BALANCE = 1_000;
 const PRESETS = [10, 25, 50, 100] as const;
-const SLIPPAGE = 0.01;
+const DEFAULT_MIN_TRADE = 0.1;
 
 const CAP_NOTES: Record<CapReason, string> = {
   max: "",
@@ -38,8 +43,9 @@ export interface BetPanelProps {
   serverNow: number;
 }
 
-function blockReason(margin: number, overBalance: boolean, priceLimitHit: boolean): string | null {
+function blockReason(margin: number, minTrade: number, overBalance: boolean, priceLimitHit: boolean): string | null {
   if (!(margin > 0)) return "Enter an amount";
+  if (margin < minTrade) return `Minimum ${minTrade} USDC`;
   if (overBalance) return "Above your balance";
   if (priceLimitHit) return "Too large for this pool";
   return null;
@@ -52,7 +58,14 @@ export function BetPanel({ market, initialSide = "yes", initialAmount = 25, serv
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState<ConfirmedBet | null>(null);
-  const { publicKey } = useWallet();
+  const [errorTx, setErrorTx] = useState<TxLinkData | null>(null);
+  const [renewing, setRenewing] = useState(false);
+  const account = useKondoraAccount();
+  const { snap, wallet, ready, reload, connected } = account;
+  const live = useLiveMarket(market.id);
+  // Mock markets (local dev without Convex) have slugs, not on-chain ids.
+  const onChain = /^\d+$/.test(market.id);
+  const { setVisible } = useWalletModal();
   const { sound, setSound, success } = useFeedback();
   const now = useNow(15_000) ?? serverNow;
   const amountId = useId();
@@ -66,14 +79,29 @@ export function BetPanel({ market, initialSide = "yes", initialAmount = 25, serv
     return () => window.removeEventListener(SIDE_EVENT, onSide);
   }, []);
 
-  const { cap, reason } = useMemo(() => leverageCap(market.yesPrice, market.closeTime, now), [market.yesPrice, market.closeTime, now]);
+  // Live on-chain state wins over the indexed snapshot whenever it is available.
+  const params = live?.account.params;
+  const yesPrice = live?.priceYes ?? market.yesPrice;
+  const view = useMemo(() => ({ yesPrice, liquidity: market.liquidity }), [yesPrice, market.liquidity]);
+  const capParams = useMemo<CapParams | undefined>(
+    () => (params ? { maxLevBps: params.max_lev_bps, tau0: Number(params.tau0), reduceOnlySecs: Number(params.reduce_only_secs) } : undefined),
+    [params],
+  );
+  const { cap, reason } = useMemo(() => leverageCap(yesPrice, market.closeTime, now, capParams), [yesPrice, market.closeTime, now, capParams]);
   const lev = Math.min(leverage, cap);
   const margin = Number.parseFloat(amountText) || 0;
-  const quote = useMemo(() => quoteBet(market, side, margin, lev), [market, side, margin, lev]);
-  const price = sidePrice(market, side);
-  const overBalance = margin > DEMO_BALANCE;
-  const closed = market.state !== "open" || now >= market.closeTime;
-  const blocked = blockReason(margin, overBalance, quote.priceLimitHit);
+  const quote = useMemo(
+    () => quoteBet(view, side, margin, lev, live?.pool, params ? params.max_price_bps / amm.BPS : undefined),
+    [view, side, margin, lev, live?.pool, params],
+  );
+  const price = sidePrice(view, side);
+  const feeRate = params ? params.fee_bps / amm.BPS : PROTOCOL.feeRate;
+  const minTrade = params ? amm.usdc(params.min_trade) : DEFAULT_MIN_TRADE;
+  const balance = ready && snap?.user ? amm.usdc(snap.user.balance) : null;
+  const overBalance = balance !== null && margin > balance;
+  const chainState = live?.account.state;
+  const closed = market.state !== "open" || now >= market.closeTime || (chainState !== undefined && chainState !== 0);
+  const blocked = blockReason(margin, minTrade, overBalance, quote.priceLimitHit);
   const dismiss = useCallback(() => setConfirmed(null), []);
 
   if (closed) {
@@ -93,24 +121,39 @@ export function BetPanel({ market, initialSide = "yes", initialAmount = 25, serv
   }
 
   const submit = async () => {
-    if (blocked || pending) return;
+    if (blocked || pending || !wallet || !snap || !live) return;
     setPending(true);
     setError(null);
-    const result = await placeBet({
-      marketId: market.id,
-      side,
-      margin,
-      leverage: lev,
-      minShares: quote.shares * (1 - SLIPPAGE),
-      owner: publicKey?.toBase58(),
-    });
+    setErrorTx(null);
+    const result = await placeBet({ wallet, snap, live, side, margin, leverage: lev });
     setPending(false);
+    void reload();
     if (!result.ok) {
       setError(result.error);
+      setErrorTx(result.tx ?? null);
       return;
     }
     success();
-    setConfirmed({ side, leverage: lev, margin, shares: quote.shares, payout: quote.payoutIfWin, liqPrice: quote.liqPrice, signature: result.signature });
+    setConfirmed({
+      side,
+      leverage: lev,
+      margin,
+      shares: result.shares ?? quote.shares,
+      payout: quote.payoutIfWin,
+      liqPrice: quote.liqPrice,
+      signature: result.tx.signature,
+      explorer: result.tx.explorer,
+    });
+  };
+
+  const renewSession = async () => {
+    if (!wallet || !snap || renewing) return;
+    setRenewing(true);
+    setError(null);
+    const result = await enableTrading({ wallet, snap, deposit: 0 });
+    setRenewing(false);
+    void reload();
+    if (!result.ok) setError(result.error);
   };
 
   const yes = side === "yes";
@@ -146,7 +189,7 @@ export function BetPanel({ market, initialSide = "yes", initialAmount = 25, serv
                 )}
               >
                 <span>{s === "yes" ? "Yes" : "No"}</span>
-                <span className="num">{formatCents(sidePrice(market, s))}</span>
+                <span className="num">{formatCents(sidePrice(view, s))}</span>
               </button>
             );
           })}
@@ -157,9 +200,11 @@ export function BetPanel({ market, initialSide = "yes", initialAmount = 25, serv
             <label htmlFor={amountId} className="app-label">
               Amount
             </label>
-            <span className="text-xs text-haze">
-              Balance <span className="num text-muted">{formatNumber(DEMO_BALANCE)}</span> USDC{publicKey ? "" : " (demo)"}
-            </span>
+            {balance !== null && (
+              <span className="text-xs text-haze">
+                Balance <span className="num text-muted">{formatNumber(balance)}</span> USDC
+              </span>
+            )}
           </div>
           <div
             className={cn(
@@ -203,11 +248,14 @@ export function BetPanel({ market, initialSide = "yes", initialAmount = 25, serv
             ))}
             <button
               type="button"
-              onClick={() => setAmountText(String(DEMO_BALANCE))}
-              aria-pressed={margin === DEMO_BALANCE}
+              disabled={balance === null}
+              onClick={() => balance !== null && setAmountText(String(Math.floor(balance * 100) / 100))}
+              aria-pressed={balance !== null && balance > 0 && margin === Math.floor(balance * 100) / 100}
               className={cn(
-                "h-8 rounded-sm text-xs font-semibold transition-colors",
-                margin === DEMO_BALANCE ? "bg-acc text-acc-ink" : "bg-fg/5 text-muted hover:bg-fg/10 hover:text-fg",
+                "h-8 rounded-sm text-xs font-semibold transition-colors disabled:opacity-40",
+                balance !== null && balance > 0 && margin === Math.floor(balance * 100) / 100
+                  ? "bg-acc text-acc-ink"
+                  : "bg-fg/5 text-muted hover:bg-fg/10 hover:text-fg",
               )}
             >
               Max
@@ -236,7 +284,7 @@ export function BetPanel({ market, initialSide = "yes", initialAmount = 25, serv
             <Row label="Shares" value={formatNumber(quote.shares)} />
             <Row label="Position size" value={formatUsd(quote.notional)} />
             <Row label="Borrowed" value={formatUsd(quote.debt)} />
-            <Row label={`Fee ${formatPct(PROTOCOL.feeRate)}`} value={formatUsd(quote.fee)} />
+            <Row label={`Fee ${formatPct(feeRate)}`} value={formatUsd(quote.fee)} />
             <Row label="Price after" value={formatCents(quote.priceAfter)} />
             <Row
               label="Liquidation price"
@@ -252,38 +300,83 @@ export function BetPanel({ market, initialSide = "yes", initialAmount = 25, serv
           )}
         </div>
 
-        {error && (
-          <p role="alert" className="text-xs text-down">
-            {error}
-          </p>
-        )}
+        <div aria-live="polite" className="space-y-1">
+          {error && (
+            <p role="alert" className="text-xs text-down">
+              {error}
+            </p>
+          )}
+          {errorTx && <TxLink tx={errorTx} />}
+        </div>
 
-        <button
-          type="button"
-          onClick={submit}
-          disabled={Boolean(blocked) || pending}
-          className={cn(
-            "group/bet relative flex h-14 w-full items-center justify-center gap-2 overflow-hidden rounded text-base font-bold",
-            "transition-[transform,box-shadow,background-color] duration-150 ease-enter active:translate-y-px active:scale-[0.97]",
-            "disabled:cursor-not-allowed disabled:bg-fg/10 disabled:text-muted disabled:shadow-none",
-            yes
-              ? "bg-up text-ink shadow-[0_12px_32px_-12px_rgb(var(--up)/0.7)] hover:bg-up/90"
-              : "bg-down text-fg shadow-[0_12px_32px_-12px_rgb(var(--down)/0.7)] hover:bg-down/90",
-          )}
-        >
-          {pending ? (
-            "Placing"
-          ) : blocked ? (
-            blocked
-          ) : (
-            <>
-              Buy {sideWord} <span className="num opacity-80">{formatLeverage(lev)}</span>
-            </>
-          )}
-        </button>
-        <p className="text-center text-[11px] text-haze">
-          {publicKey ? "Signed by your session key. No wallet popup." : "Demo mode. Connect a wallet to trade on devnet."}
-        </p>
+        {!connected ? (
+          <>
+            <button
+              type="button"
+              onClick={() => setVisible(true)}
+              className="flex h-14 w-full items-center justify-center rounded bg-plum text-base font-bold text-fg transition-[background-color,transform] hover:bg-cocoa active:scale-[0.98]"
+            >
+              Connect wallet to bet
+            </button>
+            <p className="text-center text-[11px] text-haze">Bets settle in USDC on Solana devnet.</p>
+          </>
+        ) : !snap ? (
+          <button type="button" disabled className="flex h-14 w-full items-center justify-center rounded bg-fg/10 text-base font-bold text-muted">
+            {account.error ?? "Reading your account"}
+          </button>
+        ) : !ready ? (
+          <EnableTrading key={snap.owner.toBase58()} snap={snap} wallet={wallet} onDone={() => void reload()} />
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={submit}
+              disabled={Boolean(blocked) || pending || !live}
+              className={cn(
+                "group/bet relative flex h-14 w-full items-center justify-center gap-2 overflow-hidden rounded text-base font-bold",
+                "transition-[transform,box-shadow,background-color] duration-150 ease-enter active:translate-y-px active:scale-[0.97]",
+                "disabled:cursor-not-allowed disabled:bg-fg/10 disabled:text-muted disabled:shadow-none",
+                yes
+                  ? "bg-up text-ink shadow-[0_12px_32px_-12px_rgb(var(--up)/0.7)] hover:bg-up/90"
+                  : "bg-down text-fg shadow-[0_12px_32px_-12px_rgb(var(--down)/0.7)] hover:bg-down/90",
+              )}
+            >
+              {pending ? (
+                snap.session ? "Placing" : "Approve in your wallet"
+              ) : !live ? (
+                onChain ? "Loading pool" : "Demo market"
+              ) : blocked ? (
+                blocked
+              ) : (
+                <>
+                  Buy {sideWord} <span className="num opacity-80">{formatLeverage(lev)}</span>
+                </>
+              )}
+            </button>
+            {balance !== null && balance < minTrade ? (
+              <p className="text-center text-[11px] text-haze">
+                Your trading balance is empty.{" "}
+                <Link href="/portfolio" className="font-semibold text-acc underline decoration-acc/30 underline-offset-4">
+                  Add funds
+                </Link>
+              </p>
+            ) : snap.session ? (
+              <p className="text-center text-[11px] text-haze">Signed by your session key. No wallet popup.</p>
+            ) : (
+              <p className="text-center text-[11px] text-haze">
+                Session key expired, so your wallet signs each bet.{" "}
+                <button
+                  type="button"
+                  onClick={renewSession}
+                  disabled={renewing}
+                  className="font-semibold text-acc underline decoration-acc/30 underline-offset-4 disabled:opacity-50"
+                >
+                  {renewing ? "Renewing" : "Renew for 24h"}
+                </button>
+              </p>
+            )}
+          </>
+        )}
       </div>
 
       <AnimatePresence>

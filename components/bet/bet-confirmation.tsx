@@ -18,6 +18,8 @@ export interface ConfirmedBet {
   payout: number;
   liqPrice: number | null;
   signature: string;
+  /** Explorer link for the transaction. */
+  explorer?: string;
 }
 
 /** The confirm moment: a ticket rises over the panel, the coin halves snap together, the payout counts up. */
@@ -86,7 +88,18 @@ export function BetConfirmation({ bet, question, onDone }: { bet: ConfirmedBet; 
             <dd className="num mt-0.5 text-sm">{bet.liqPrice === null ? "None" : formatCents(bet.liqPrice)}</dd>
           </div>
         </dl>
-        <p className="mt-3 font-mono text-[11px] text-mauve">Tx {shortHash(bet.signature, 6)}</p>
+        {bet.explorer ? (
+          <a
+            href={bet.explorer}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 inline-block font-mono text-[11px] text-mauve underline decoration-cocoa/20 underline-offset-4 hover:text-cocoa"
+          >
+            Tx {shortHash(bet.signature, 6)}
+          </a>
+        ) : (
+          <p className="mt-3 font-mono text-[11px] text-mauve">Tx {shortHash(bet.signature, 6)}</p>
+        )}
 
         <div className="mt-5 grid grid-cols-2 gap-2">
           <button

@@ -1,12 +1,16 @@
-import type { PlatformStats } from "@/lib/data";
-import { formatUsdWhole } from "@/lib/format";
+"use client";
 
-/** Platform totals under the header. Scrolls sideways on small screens. */
-export function StatsRibbon({ stats }: { stats: PlatformStats }) {
+import { useLiveStats } from "@/hooks/use-convex-live";
+import { formatUsdWhole } from "@/lib/format";
+import type { PlatformStats } from "@/lib/views";
+
+/** Platform totals under the header, live from Convex. Scrolls sideways on small screens. */
+export function StatsRibbon({ stats: initial }: { stats: PlatformStats }) {
+  const stats = useLiveStats(initial);
   const items = [
     { label: "Total volume", value: formatUsdWhole(stats.totalVolume) },
     { label: "Open markets", value: String(stats.openMarkets) },
-    { label: "Open interest", value: formatUsdWhole(stats.openInterest) },
+    { label: "Pool liquidity", value: formatUsdWhole(stats.liquidity) },
     { label: "Settled", value: String(stats.settled) },
   ];
   return (

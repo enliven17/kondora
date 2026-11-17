@@ -15,6 +15,10 @@ export interface PositionRow {
   view: PositionView;
   /** USDC claimable when the market has settled, else null. */
   claimable: number | null;
+  /** Trading has closed and the outcome is not final yet. */
+  settling?: boolean;
+  /** Read-only demo row. */
+  demo?: boolean;
 }
 
 /** Health from liquidation (0) to safe (1): a down-to-up gradient revealed up to the current health. */
@@ -52,15 +56,19 @@ function SideTag({ position }: { position: Position }) {
 
 function Action({ row, busy, onClose, onClaim }: { row: PositionRow; busy: boolean; onClose: () => void; onClaim: () => void }) {
   const base = "h-9 rounded-sm px-3 text-xs font-bold transition-[background-color,transform] active:scale-95 disabled:opacity-50";
+  if (row.demo) return <span className="text-xs text-haze">Demo</span>;
   if (row.claimable !== null) {
     return row.claimable > 0 ? (
       <button type="button" onClick={onClaim} disabled={busy} className={cn(base, "bg-acc text-acc-ink hover:bg-acc-hover")}>
         {busy ? "Claiming" : `Claim ${formatUsd(row.claimable)}`}
       </button>
     ) : (
-      <span className="text-xs text-haze">Settled, nothing to claim</span>
+      <button type="button" onClick={onClaim} disabled={busy} className={cn(base, "bg-fg/10 text-muted hover:bg-fg/15 hover:text-fg")}>
+        {busy ? "Clearing" : "Lost, clear"}
+      </button>
     );
   }
+  if (row.settling) return <span className="text-xs text-haze">Awaiting settlement</span>;
   return (
     <button type="button" onClick={onClose} disabled={busy} className={cn(base, "bg-fg/10 text-fg hover:bg-fg/15")}>
       {busy ? "Closing" : "Close"}

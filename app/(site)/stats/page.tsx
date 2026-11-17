@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 import { ButtonLink } from "@/components/ui/button";
+import { unixNow } from "@/lib/clock";
 import { CATEGORY_META } from "@/lib/categories";
-import { getMarkets } from "@/lib/data";
+import { NoMarkets } from "@/components/markets/no-markets";
+import { getMarkets, getRecentActivity, getStats } from "@/lib/data";
 import { formatUsdCompact } from "@/lib/format";
 import { CATEGORIES, type Category, type Outcome } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -16,6 +18,7 @@ export const metadata: Metadata = {
 export const revalidate = 60;
 
 const DAY = 86_400;
+const TRADE_WINDOW = 200;
 const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 const int = new Intl.NumberFormat("en-US");
 const dayFmt = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
@@ -50,22 +53,22 @@ function Card({ label, aside, className, children }: { label: string; aside?: st
 }
 
 export default async function StatsPage() {
-  const markets = await getMarkets();
-  const open = markets.filter((m) => m.state === "open");
+  const [markets, stats, trades] = await Promise.all([getMarkets(), getStats(), getRecentActivity(TRADE_WINDOW)]);
   const settled = markets.filter((m) => m.state === "resolved" && m.outcome);
-  const volume = markets.reduce((s, m) => s + m.volume, 0);
-  const liquidity = open.reduce((s, m) => s + m.liquidity, 0);
+  const volume = stats.totalVolume;
+  const liquidity = stats.liquidity;
+  const openCount = stats.openMarkets;
   const traders = markets.reduce((s, m) => s + m.traders, 0);
 
-  const totalOpen = Math.max(1, open.length);
-  const byCategory = CATEGORIES.map((c) => ({ id: c, count: open.filter((m) => m.category === c).length })).filter((c) => c.count > 0);
+  const totalOpen = Math.max(1, openCount);
+  const byCategory = CATEGORIES.map((c) => ({ id: c, count: stats.byCategory[c] ?? 0 })).filter((c) => c.count > 0);
 
-  // Daily traded notional over the last 14 days, summed from every market's price history.
-  const end = markets.reduce((max, m) => Math.max(max, m.history.at(-1)?.t ?? 0), 0);
+  // Daily traded notional over the last 14 days, from the most recent trades.
+  const end = Math.ceil(unixNow() / DAY) * DAY;
   const days = Array.from({ length: 14 }, (_, i) => {
     const to = end - (13 - i) * DAY;
     const from = to - DAY;
-    const v = markets.reduce((s, m) => s + m.history.reduce((a, p) => (p.t > from && p.t <= to ? a + p.v : a), 0), 0);
+    const v = trades.reduce((a, t) => (t.t > from && t.t <= to ? a + (t.kind === "open" ? t.amount * Math.max(1, t.leverage) : t.amount) : a), 0);
     return { t: to, v };
   });
   const maxDay = Math.max(1, ...days.map((d) => d.v));
@@ -73,7 +76,7 @@ export default async function StatsPage() {
   const outcomes = (["yes", "no", "invalid"] as const).map((o) => ({ id: o, count: settled.filter((m) => m.outcome === o).length }));
 
   const tiles = [
-    { label: "Open markets", value: int.format(open.length) },
+    { label: "Open markets", value: int.format(openCount) },
     { label: "Settled", value: int.format(settled.length) },
     { label: "Max leverage", value: "5x", tone: "text-acc" },
     { label: "Avg volume per market", value: formatUsdCompact(volume / Math.max(1, markets.length)) },
@@ -96,7 +99,7 @@ export default async function StatsPage() {
         <Card label="Liquidity in open markets" aside="pm-AMM pools">
           <p className="num text-[clamp(2.25rem,6vw,3.75rem)] leading-none">{usd.format(liquidity)}</p>
           <p className="mt-3 text-sm text-muted">
-            <span className="num text-fg">{open.length}</span> open markets, funded by the House
+            <span className="num text-fg">{openCount}</span> open markets, funded by the House
           </p>
         </Card>
       </div>
@@ -111,7 +114,8 @@ export default async function StatsPage() {
       </div>
 
       <div className="mt-3 grid gap-3 lg:grid-cols-[1.4fr_1fr]">
-        <Card label="Open markets by category" aside={`${open.length} total`}>
+        <Card label="Open markets by category" aside={`${openCount} total`}>
+          {byCategory.length === 0 && <NoMarkets className="py-6" />}
           <div className="flex h-3 w-full gap-0.5 overflow-hidden rounded-xs" role="img" aria-label="Share of open markets by category">
             {byCategory.map((c) => (
               <div key={c.id} className={CATEGORY_COLOR[c.id]} style={{ width: `${(c.count / totalOpen) * 100}%` }} />
@@ -150,7 +154,7 @@ export default async function StatsPage() {
         </Card>
       </div>
 
-      <Card label="Daily volume" aside="Last 14 days, UTC" className="mt-3">
+      <Card label="Daily volume" aside={`Last 14 days, latest ${TRADE_WINDOW} trades`} className="mt-3">
         <div className="flex h-48 items-end gap-1 sm:gap-2" role="img" aria-label="Daily traded volume over the last 14 days">
           {days.map((d, i) => (
             <div key={d.t} className="flex h-full min-w-0 flex-1 flex-col justify-end">

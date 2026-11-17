@@ -4,18 +4,15 @@ import { notFound } from "next/navigation";
 import { BetPanel } from "@/components/bet/bet-panel";
 import { MobileBetBar } from "@/components/bet/mobile-bet-bar";
 import { MarketHeader } from "@/components/markets/market-header";
-import { ActivityList, OracleTrail, RelatedMarkets, RulesSection } from "@/components/markets/market-sections";
+import { LiveActivity } from "@/components/markets/live-activity";
+import { OracleTrail, RelatedMarkets, RulesSection } from "@/components/markets/market-sections";
 import { PriceChart } from "@/components/markets/price-chart";
 import { PriceImpact } from "@/components/markets/price-impact";
-import { getMarket, getMarketActivity, getMarkets, getRelatedMarkets, toListItem } from "@/lib/data";
+import { unixNow } from "@/lib/clock";
+import { getMarket, getMarketActivity, getRelatedMarkets, toListItem } from "@/lib/data";
 import type { Side } from "@/lib/types";
 
 export const revalidate = 60;
-
-export async function generateStaticParams() {
-  const markets = await getMarkets();
-  return markets.map((m) => ({ id: m.id }));
-}
 
 export async function generateMetadata({ params }: PageProps<"/markets/[id]">): Promise<Metadata> {
   const { id } = await params;
@@ -40,7 +37,7 @@ export default async function MarketPage({ params, searchParams }: PageProps<"/m
   const [activity, related] = await Promise.all([getMarketActivity(market), getRelatedMarkets(market)]);
   const initialSide: Side = query.side === "no" ? "no" : "yes";
   const initialAmount = parseAmount(query.amount);
-  const serverNow = Math.floor(Date.now() / 1000);
+  const serverNow = unixNow();
   const open = market.state === "open";
 
   return (
@@ -64,7 +61,7 @@ export default async function MarketPage({ params, searchParams }: PageProps<"/m
         <PriceImpact market={{ yesPrice: market.yesPrice, liquidity: market.liquidity }} />
         <RulesSection market={market} />
         <OracleTrail market={market} />
-        <ActivityList activity={activity} />
+        <LiveActivity marketId={market.id} initial={activity} />
         <RelatedMarkets markets={related} />
       </div>
 
