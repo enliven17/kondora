@@ -38,9 +38,9 @@ export function MarketRow({ market, amount, serverNow }: { market: Market; amoun
 
   return (
     <li className="relative flex flex-wrap items-center gap-x-4 gap-y-3 px-3 py-3.5 transition-colors hover:bg-fg/[0.035] sm:flex-nowrap sm:px-5">
-      <div className="flex min-w-0 basis-full items-center gap-3 sm:flex-1 sm:basis-auto">
+      <div className="flex min-w-0 basis-full items-center gap-3 sm:flex-1 sm:basis-0">
         <CategoryThumb category={market.category} className="size-12 sm:size-14" />
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h3 className="line-clamp-2 text-[15px] font-semibold leading-snug tracking-tight text-fg">
             <Link
               href={`/markets/${market.id}`}
@@ -65,7 +65,7 @@ export function MarketRow({ market, amount, serverNow }: { market: Market; amoun
         </div>
       </div>
 
-      <div className="flex items-baseline gap-2 sm:w-28 sm:flex-col sm:items-end sm:gap-0.5">
+      <div className="flex shrink-0 items-baseline gap-2 whitespace-nowrap sm:w-28 sm:flex-col sm:items-end sm:gap-0.5">
         <span className="num text-xl leading-none text-fg sm:text-2xl">
           {formatChance(market.yesPrice)}
           <span className="sr-only"> chance of YES</span>
@@ -75,12 +75,12 @@ export function MarketRow({ market, amount, serverNow }: { market: Market; amoun
         </span>
       </div>
 
-      <div className="hidden w-24 text-right lg:block">
+      <div className="hidden w-24 shrink-0 text-right lg:block">
         <span className="num text-sm text-fg">{formatUsdCompact(market.volume)}</span>
         <span className="block text-[11px] text-haze">Volume</span>
       </div>
 
-      <div className="relative z-10 ml-auto flex gap-1.5 sm:ml-0">
+      <div className="relative z-10 ml-auto flex shrink-0 gap-1.5 sm:ml-0 sm:w-[8.875rem] sm:justify-end">
         {open ? (
           <>
             <QuickBetChip marketId={market.id} side="yes" amount={amount} />

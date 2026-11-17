@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import { Panel } from "@/components/ui/panel";
+import { Select } from "@/components/ui/select";
 import { useLiveMarketList } from "@/hooks/use-convex-live";
 import { CATEGORY_META } from "@/lib/categories";
 import { CATEGORIES, type Category, type Market, type SortKey } from "@/lib/types";
@@ -31,17 +32,6 @@ function sortMarkets(list: Market[], sort: SortKey) {
   };
   return [...list].sort((a, b) => openFirst(a, b) || by[sort](a, b));
 }
-
-function Chevron() {
-  return (
-    <svg viewBox="0 0 16 16" aria-hidden="true" className="pointer-events-none absolute right-0 top-1/2 size-4 -translate-y-1/2" fill="none">
-      <path d="m4 6 4 4 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-const selectClass =
-  "h-9 cursor-pointer appearance-none bg-transparent pr-6 text-sm font-semibold text-cocoa focus:outline-none focus-visible:underline [&>option]:bg-paper [&>option]:text-cocoa";
 
 export function MarketsTable({ markets: initial, initialCategory, serverNow }: { markets: Market[]; initialCategory?: Category; serverNow: number }) {
   const markets = useLiveMarketList(initial);
@@ -74,33 +64,14 @@ export function MarketsTable({ markets: initial, initialCategory, serverNow }: {
         Markets
       </h2>
       <div className="flex items-center justify-between gap-3 bg-blush/90 px-3 sm:px-5">
-        <label className="relative">
-          <span className="sr-only">Category</span>
-          <select value={category} onChange={(e) => onCategory(e.target.value as Filter)} className={selectClass}>
-            <option value="all">All markets ({counts.all ?? 0})</option>
-            {CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {CATEGORY_META[c].label} ({counts[c] ?? 0})
-              </option>
-            ))}
-          </select>
-          <span className="text-cocoa">
-            <Chevron />
-          </span>
-        </label>
-        <label className="relative flex items-center gap-1.5 text-sm text-mauve">
-          <span>Sort</span>
-          <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)} className={selectClass}>
-            {SORTS.map((s) => (
-              <option key={s.value} value={s.value}>
-                {s.label}
-              </option>
-            ))}
-          </select>
-          <span className="text-cocoa">
-            <Chevron />
-          </span>
-        </label>
+        <Select<Filter> label="Category" value={category} onChange={onCategory} options={[
+          { value: "all", label: "All markets", count: counts.all ?? 0 },
+          ...CATEGORIES.map(c => ({ value: c, label: CATEGORY_META[c].label, count: counts[c] ?? 0, icon: CATEGORY_META[c].cover })),
+        ]} />
+        <div className="flex min-w-0 items-center gap-0.5 text-sm text-mauve">
+          <span className="hidden xs:inline">Sort</span>
+          <Select label="Sort" value={sort} onChange={setSort} options={SORTS} align="end" />
+        </div>
       </div>
 
       <div className="flex items-center justify-between gap-3 border-b border-line/10 px-3 py-2.5 sm:px-5">
@@ -129,10 +100,10 @@ export function MarketsTable({ markets: initial, initialCategory, serverNow }: {
       </div>
 
       <div className="hidden items-center gap-4 border-b border-line/10 px-5 py-2 text-xs text-haze sm:flex">
-        <span className="flex-1">Market</span>
-        <span className="w-28 text-right">Yes chance</span>
-        <span className="hidden w-24 text-right lg:block">Volume</span>
-        <span className="w-[8.875rem] text-right">Bet</span>
+        <span className="min-w-0 flex-1">Market</span>
+        <span className="w-28 shrink-0 text-right">Yes chance</span>
+        <span className="hidden w-24 shrink-0 text-right lg:block">Volume</span>
+        <span className="w-[8.875rem] shrink-0 text-right">Bet</span>
       </div>
 
       {markets.length === 0 ? (
