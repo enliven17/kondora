@@ -6,7 +6,7 @@
 // Writes .soak/events.jsonl and .soak/summary.json; sessions persist in .soak/sessions.json.
 
 import { Keypair, LAMPORTS_PER_SOL, SystemProgram, Transaction, VersionedTransaction } from "@solana/web3.js";
-import { createTransferCheckedInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
+import { createAssociatedTokenAccountIdempotentInstruction, createTransferCheckedInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 mkdirSync(".soak", { recursive: true });
@@ -29,7 +29,7 @@ const { readAccount } = await import("../lib/account");
 const { subscribeMarket } = await import("../lib/live");
 const trade = await import("../lib/trade");
 const { leverageCap, maxFeasibleLeverage, maxFeasibleMargin } = await import("../lib/leverage");
-const { DEVNET_USDC, DELEGATION_PROGRAM_ID, ix, configPda, decodeConfig, decodeMarket, marketPda, STATE, STATE_NAME, amm } = await import("../lib/kondora");
+const { DEVNET_USDC, DELEGATION_PROGRAM_ID, decodeUser, userPda, ix, configPda, decodeConfig, decodeMarket, marketPda, STATE, STATE_NAME, amm } = await import("../lib/kondora");
 
 type Live = Parameters<Parameters<typeof subscribeMarket>[1]>[0];
 type Snap = Awaited<ReturnType<typeof readAccount>>;
@@ -146,31 +146,74 @@ const later = (ms: number, run: () => Promise<void>) => timers.push({ at: Date.n
 const freeWallets = () => ready.filter((k) => !busy.has(k.publicKey.toBase58()));
 
 // ── Setup: spread USDC, top up SOL, enable trading ───────────────────────
+/** Trading balance and open debt for every wallet, two batched reads per 100 wallets. */
+async function accounts() {
+  const out: { balance: number; debt: boolean }[] = [];
+  for (let i = 0; i < wallets.length; i += 100) {
+    const pdas = wallets.slice(i, i + 100).map((k) => userPda(k.publicKey));
+    const base = await conn.getMultipleAccountsInfo(pdas);
+    const onEr = await er.getMultipleAccountsInfo(pdas).catch(() => pdas.map(() => null));
+    base.forEach((b, j) => {
+      const data = b?.owner.equals(DELEGATION_PROGRAM_ID) ? (onEr[j]?.data ?? b.data) : b?.data;
+      try {
+        const u = data ? decodeUser(data) : null;
+        out.push({ balance: u ? Number(u.balance) / 1e6 : 0, debt: !!u?.positions.some((p) => p.debt > 0n) });
+      } catch {
+        out.push({ balance: 0, debt: false });
+      }
+    });
+  }
+  return out;
+}
+
+const TARGET = 2.5;
+
+/**
+ * Keeps USDC moving across all wallets: accounts that grew fat withdraw the
+ * surplus, the surplus goes to wallets with nothing, enrol() deposits it again.
+ */
 async function spreadFunds() {
-  const atas = await conn.getMultipleAccountsInfo(wallets.map((k) => getAssociatedTokenAddressSync(DEVNET_USDC, k.publicKey)));
-  const usdc = atas.map((a) => (a ? Number(a.data.readBigUInt64LE(64)) / 1e6 : 0));
-  const target = 3;
-  const donors = wallets.map((k, i) => ({ k, spare: usdc[i] - target, ata: atas[i] })).filter((d) => d.spare > 1);
-  const empty = wallets.filter((_, i) => !atas[i] || usdc[i] < 0.5);
+  const atasOf = async () => (await conn.getMultipleAccountsInfo(wallets.map((k) => getAssociatedTokenAddressSync(DEVNET_USDC, k.publicKey)))).map((a) => (a ? Number(a.data.readBigUInt64LE(64)) / 1e6 : 0));
+  const acc = await accounts();
+  let usdc = await atasOf();
+  const needy = wallets.filter((_, i) => usdc[i] < 0.5 && acc[i].balance < 0.3);
+  const need = needy.length * TARGET;
+  let free = wallets.reduce((a, _, i) => a + Math.max(0, usdc[i] - (acc[i].balance < 0.3 ? TARGET : 0.2)), 0);
+
+  // Withdraw surplus from the richest debt free accounts until it covers the needy.
+  const rich = wallets.map((k, i) => ({ k, i, extra: acc[i].balance - 4 })).filter((x) => x.extra > 1 && !acc[x.i].debt).sort((a, b) => b.extra - a.extra);
+  for (const r of rich) {
+    if (free >= need) break;
+    const s = await snapOf(r.k);
+    const amount = Math.floor(r.extra * 100) / 100;
+    if (ok("rotate: withdraw surplus", await trade.withdraw({ wallet: asWallet(r.k), snap: s, amount }), `${short(r.k)} ${amount}`)) free += amount;
+  }
+
   const sols = await conn.getMultipleAccountsInfo(wallets.map((k) => k.publicKey));
-  const lowSol = wallets.filter((_, i) => (sols[i]?.lamports ?? 0) < 0.015 * LAMPORTS_PER_SOL);
+  usdc = await atasOf();
+  const lowSol = wallets.filter((_, i) => (sols[i]?.lamports ?? 0) < 0.015 * LAMPORTS_PER_SOL && (usdc[i] >= 0.5 || acc[i].balance >= 0.3 || needy.includes(wallets[i])));
   for (let i = 0; i < lowSol.length; i += 10) {
     await baseSend([], lowSol.slice(i, i + 10).map((k) => SystemProgram.transfer({ fromPubkey: admin.publicKey, toPubkey: k.publicKey, lamports: 0.025 * LAMPORTS_PER_SOL })));
   }
+
+  const donors = wallets.map((k, i) => ({ k, spare: usdc[i] - (needy.includes(k) ? TARGET : 0.2) })).filter((d) => d.spare >= TARGET);
   let moved = 0;
-  for (const to of empty) {
-    const d = donors.find((x) => x.spare >= target);
+  for (const to of needy) {
+    const d = donors.find((x) => x.spare >= TARGET);
     if (!d) break;
     const toAta = getAssociatedTokenAddressSync(DEVNET_USDC, to.publicKey);
-    const { createAssociatedTokenAccountIdempotentInstruction: createAta } = await import("@solana/spl-token");
-    await baseSend([d.k], [
-      createAta(admin.publicKey, toAta, to.publicKey, DEVNET_USDC),
-      createTransferCheckedInstruction(getAssociatedTokenAddressSync(DEVNET_USDC, d.k.publicKey), DEVNET_USDC, toAta, d.k.publicKey, BigInt(target * 1e6), 6),
-    ]).catch((e) => log("spread funds", "infra", String(e.message).slice(0, 80)));
-    d.spare -= target;
-    moved++;
+    try {
+      await baseSend([d.k], [
+        createAssociatedTokenAccountIdempotentInstruction(admin.publicKey, toAta, to.publicKey, DEVNET_USDC),
+        createTransferCheckedInstruction(getAssociatedTokenAddressSync(DEVNET_USDC, d.k.publicKey), DEVNET_USDC, toAta, d.k.publicKey, BigInt(TARGET * 1e6), 6),
+      ]);
+      d.spare -= TARGET;
+      moved++;
+    } catch (e) {
+      log("rotate: send to empty wallet", "infra", String((e as Error).message).slice(0, 80));
+    }
   }
-  console.log(`SOL topped up ${lowSol.length}, USDC sent to ${moved} empty wallets`);
+  log("rotate: funds spread", "pass", `${moved}/${needy.length} empty wallets got ${TARGET} USDC, ${lowSol.length} got SOL`);
 }
 
 /** Enables trading (or tops it up) for every wallet holding USDC in its token account. */
@@ -180,8 +223,9 @@ async function enrol() {
       const s = await snapOf(k);
       const free = Math.floor((Number(s.usdc) / 1e6 - 0.05) * 100) / 100;
       const isReady = s.delegated && !!s.session;
-      // Topping up needs an undelegate, which open debt blocks: leave those for later.
-      if (isReady && s.user?.positions.some((p) => p.debt > 0n)) {
+      // Topping up needs an undelegate, which open debt blocks: only add a session key then.
+      if (s.delegated && s.user?.positions.some((p) => p.debt > 0n)) {
+        if (!s.session && !ok("session key only (debt open)", await trade.enableTrading({ wallet: asWallet(k), snap: s, deposit: 0 }), short(k))) continue;
         if (!ready.some((r) => r.publicKey.equals(k.publicKey))) ready.push(k);
         continue;
       }
@@ -449,6 +493,7 @@ while (Date.now() < END || timers.length) {
     if (Date.now() >= nextHousekeeping) {
       nextHousekeeping = Date.now() + 30 * 60_000;
       await refreshMarkets();
+      await spreadFunds();
       await enrol();
       await lifecycleSweep();
       summary();

@@ -1,5 +1,6 @@
 // Devnet helper wallets for collecting Circle test USDC.
 //   node scripts/faucet-wallets.mjs gen [count]   creates keys in .keys/faucet/ and prints addresses
+//   node scripts/faucet-wallets.mjs add [count]   appends more keys
 //   node scripts/faucet-wallets.mjs balances      shows USDC per wallet and the total
 //   node scripts/faucet-wallets.mjs sweep         moves all USDC to the admin wallet (admin pays fees)
 // Keys stay in .keys/ (gitignored). Devnet only.
@@ -43,7 +44,15 @@ if (cmd === "gen") {
   const list = ws.map((w) => w.publicKey.toBase58()).join("\n");
   writeFileSync(join(DIR, "addresses.txt"), list + "\n");
   console.log(list);
+} else if (cmd === "add") {
+  const ws = JSON.parse(readFileSync(FILE, "utf8"));
+  const fresh = Array.from({ length: Number(arg ?? 100) }, () => Keypair.generate());
+  writeFileSync(FILE, JSON.stringify([...ws, ...fresh.map((w) => [...w.secretKey])]), { mode: 0o600 });
+  const all = [...ws.map((s) => Keypair.fromSecretKey(Uint8Array.from(s))), ...fresh].map((w) => w.publicKey.toBase58());
+  writeFileSync(join(DIR, "addresses.txt"), all.join("\n") + "\n");
+  console.log(`added ${fresh.length}, total ${all.length}`);
 } else if (cmd === "balances") {
+
   const ws = loadWallets();
   const b = await balances(ws);
   let total = 0n;
