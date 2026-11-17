@@ -399,6 +399,10 @@ pub mod kondora {
     }
 
     pub fn undelegate_user(ctx: Context<UndelegateUser>) -> Result<()> {
+        // A borrowed position must stay where the crank can liquidate it and
+        // force close it before the market closes. Leaving the rollup with
+        // debt would freeze the market (security review H1).
+        engine::require_no_debt(&ctx.accounts.user)?;
         ctx.accounts.user.exit(&crate::ID)?;
         MagicIntentBundleBuilder::new(
             ctx.accounts.owner.to_account_info(),

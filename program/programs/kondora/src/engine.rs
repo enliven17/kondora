@@ -377,6 +377,12 @@ pub fn liquidate(m: &mut Market, u: &mut UserAccount, side_u8: u8, now: i64) -> 
     })
 }
 
+/// A user account with borrowed positions may not leave the rollup.
+pub fn require_no_debt(u: &UserAccount) -> Result<()> {
+    require!(u.positions.iter().all(|p| p.debt == 0), KondoraError::DebtOutstanding);
+    Ok(())
+}
+
 /// Payout per share side for a resolved market.
 fn payout_for(m: &Market, side: u8, shares: u64) -> u64 {
     match m.outcome {
@@ -732,5 +738,18 @@ mod tests {
         assert!(a.find(1, 0).is_none());
         assert_eq!(m.open_debt, 0);
         assert_eq!(m.lend_pool + m.bad_debt, 50_000 * USDC);
+    }
+
+    #[test]
+    fn debt_blocks_leaving_the_rollup() {
+        let mut m = market(10_000 * USDC, 20_000 * USDC, 0.0);
+        let mut a = user(1_000 * USDC);
+        assert!(require_no_debt(&a).is_ok());
+        open(&mut m, &mut a, 0, 10 * USDC, 10_000, 0, HOUR).unwrap();
+        assert!(require_no_debt(&a).is_ok(), "1x positions may leave");
+        open(&mut m, &mut a, 1, 10 * USDC, 20_000, 0, HOUR).unwrap();
+        assert!(require_no_debt(&a).is_err(), "leveraged positions may not");
+        close(&mut m, &mut a, 1, 10_000, 0, HOUR).unwrap();
+        assert!(require_no_debt(&a).is_ok());
     }
 }
