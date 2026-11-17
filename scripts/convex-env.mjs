@@ -38,7 +38,7 @@ for (const role of ["creator", "oracle", "auditor", "crank"]) {
   const p = join(".keys", `${role}.json`);
   if (existsSync(p)) env[`${role.toUpperCase()}_SECRET`] = readFileSync(p, "utf8").trim();
 }
-const adminPath = process.env.ADMIN_KEYPAIR ?? join(process.env.USERPROFILE ?? "", ".config", "solana", "id.json");
+const adminPath = process.env.ADMIN_KEYPAIR ?? join(process.env.USERPROFILE ?? "", ".config", "solana", "talos-deploy.json");
 if (existsSync(adminPath) && process.argv.includes("--with-admin")) env.ADMIN_SECRET = readFileSync(adminPath, "utf8").trim();
 
 const prod = process.argv.includes("--prod") ? ["--prod"] : [];
