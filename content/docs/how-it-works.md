@@ -26,7 +26,7 @@ Deposit USDC once, open a session, and trade YES or NO at 1x to 5x. Your account
 
 ## 3. Leverage winds down
 
-Leverage caps fall as the close approaches. One hour before close, only 1x positions can be opened. Ten minutes before close, every leveraged position is handed back to the House at the time-weighted mark price. Only fully paid 1x shares reach settlement.
+Leverage caps fall as the close approaches. One hour before close, only 1x positions can be opened. Ten minutes before close, solvent leveraged positions are closed through the pool and underwater positions go to the House. Only fully paid 1x shares reach settlement.
 
 ## 4. Trading closes
 

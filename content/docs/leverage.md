@@ -48,7 +48,7 @@ You can close a leveraged position yourself at any time, as long as the sale cov
 
 ## Before the close
 
-Ten minutes before close, every remaining leveraged position goes back to the House at the mark price, with no penalty. The market cannot close while any debt is open, so no borrowed position ever reaches settlement.
+Ten minutes before close, solvent leveraged positions are sold through the pool and their debt is repaid, with no liquidation penalty. The exit includes price impact and trading fees. Positions that cannot repay their debt go to the House; a stale mark cannot be used to withdraw equity from an underwater position. The market cannot close while any debt is open, so no borrowed position ever reaches settlement.
 
 ## Interest
 

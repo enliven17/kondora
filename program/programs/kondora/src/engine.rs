@@ -315,14 +315,14 @@ pub fn mark_health(m: &Market, p: &Position, now: i64) -> Result<Health> {
     Ok(Health { value, equity, liquidatable: p.debt > 0 && equity <= maint })
 }
 
-/// Permissionless. Hands a leveraged position to the House at the
-/// time-weighted mark, without trading against the AMM:
+/// Permissionless. Uses the mark to trigger liquidation and the halt window to
+/// force close remaining debt. Solvent force closes execute against the pool;
+/// underwater positions go to the House without moving the pool price.
 /// - under maintenance at the mark: liquidation with penalty,
 /// - inside the halt window before close: force close, no penalty.
-/// The House takes the shares and forgives the loan; the owner gets what is
-/// left of the mark value after debt, interest and penalty. Because nothing is
-/// sold into the pool, a price push cannot be farmed through someone else's
-/// liquidation, and a decayed or lopsided pool can never block it.
+/// A healthy force close must never pay the marginal mark for every share:
+/// that would pay a trader for their own price impact. Selling bad debt into
+/// the pool is also unsafe: a second account could farm the forced sale.
 pub fn liquidate(m: &mut Market, u: &mut UserAccount, side_u8: u8, now: i64) -> Result<CloseResult> {
     require!(m.state == ST_OPEN, KondoraError::MarketNotOpen);
     let slot = u.find(m.id, side_u8).ok_or(KondoraError::NoPosition)?;
@@ -337,19 +337,34 @@ pub fn liquidate(m: &mut Market, u: &mut UserAccount, side_u8: u8, now: i64) -> 
     require!(h.liquidatable || halted, KondoraError::Healthy);
 
     let owed = pos.debt as u128 + pos.accrued as u128;
-    let penalty = if h.liquidatable { bps_down(h.value, m.params.liq_bps as u64) } else { 0 };
-    let equity = h.value as u128;
-    let mut to_user = equity.saturating_sub(owed).saturating_sub(penalty as u128) as u64;
-    // Pay the owner from the lend pool, then from cash above every side's claims.
-    let from_lend = to_user.min(m.lend_pool);
+    let (gross, exit_z) = sell_proceeds(m.z, m.l, side, pos.shares).ok_or(KondoraError::Math)?;
+    let net = gross - bps_up(gross, m.params.fee_bps as u64).min(gross);
     let (qy, qn) = match side {
         Side::Yes => (m.q_yes.saturating_sub(pos.shares), m.q_no),
         Side::No => (m.q_yes, m.q_no.saturating_sub(pos.shares)),
     };
     let spare_cash = m.cash.saturating_sub(qy.max(qn));
+    if !h.liquidatable && net as u128 >= owed && gross <= spare_cash {
+        return close_slot(m, u, slot, BPS, 0, true, now);
+    }
+
+    let penalty = if h.liquidatable { bps_down(h.value, m.params.liq_bps as u64) } else { 0 };
+    let equity = h.value as u128;
+    // Backstop a sale that would consume the other side's reserved claims.
+    // Value it at the executable exit and update z; it must not pay the mark
+    // or leave the trader's price impact available to a second account.
+    // Underwater positions never sell into the pool (sandwich protection).
+    let mut to_user = if h.liquidatable {
+        equity.saturating_sub(owed).saturating_sub(penalty as u128) as u64
+    } else {
+        if net as u128 >= owed {
+            m.z = exit_z;
+        }
+        (net as u128).saturating_sub(owed) as u64
+    };
+    let from_lend = to_user.min(m.lend_pool);
     let from_cash = (to_user - from_lend).min(spare_cash);
     to_user = from_lend + from_cash;
-
     m.lend_pool -= from_lend;
     m.cash -= from_cash;
     sub_q(m, side, pos.shares)?;
@@ -357,7 +372,6 @@ pub fn liquidate(m: &mut Market, u: &mut UserAccount, side_u8: u8, now: i64) -> 
     m.bad_debt = m.bad_debt.saturating_add((pos.debt as u128).saturating_sub(equity) as u64);
     m.debt_positions = m.debt_positions.checked_sub(1).ok_or(KondoraError::Math)?;
     m.trades += 1;
-
     u.balance = u.balance.checked_add(to_user).ok_or(KondoraError::Math)?;
     u.realized_pnl = u.realized_pnl.saturating_add(to_user as i64 - pos.margin as i64);
     if h.liquidatable {
@@ -371,7 +385,7 @@ pub fn liquidate(m: &mut Market, u: &mut UserAccount, side_u8: u8, now: i64) -> 
         fee: 0,
         repaid: 0,
         interest: 0,
-        shortfall: (owed.saturating_sub(equity)) as u64,
+        shortfall: owed.saturating_sub(equity) as u64,
         penalty: if h.liquidatable { penalty.max(1) } else { 0 },
         to_user,
     })
@@ -751,5 +765,35 @@ mod tests {
         assert!(require_no_debt(&a).is_err(), "leveraged positions may not");
         close(&mut m, &mut a, 1, 10_000, 0, HOUR).unwrap();
         assert!(require_no_debt(&a).is_ok());
+    }
+
+    #[test]
+    fn own_price_impact_cannot_profit_from_force_close() {
+        let mut m = market(50 * USDC, 100 * USDC, 0.0);
+        let mut a = user(100 * USDC);
+        let starting_balance = a.balance;
+        let close_t = m.close_time;
+        open(&mut m, &mut a, 0, 20 * USDC, 11_000, 0, close_t - 3601).unwrap();
+        liquidate(&mut m, &mut a, 0, close_t - 300).unwrap();
+        assert!(a.balance <= starting_balance, "risk-free profit {} micro USDC", a.balance.saturating_sub(starting_balance));
+        assert_eq!(m.debt_positions, 0);
+        check_solvency(&m).unwrap();
+    }
+
+    #[test]
+    fn force_close_preserves_other_sides_reserved_claims() {
+        let mut m = market(50 * USDC, 100 * USDC, 0.0);
+        let mut a = user(100 * USDC);
+        let close_t = m.close_time;
+        open(&mut m, &mut a, 0, 20 * USDC, 11_000, 0, close_t - 3601).unwrap();
+        // The other side can retain all cash after prior House takeovers.
+        m.q_no = m.cash;
+        let before = total(&m, &[&a]);
+        liquidate(&mut m, &mut a, 0, close_t - 300).unwrap();
+        assert_eq!(m.debt_positions, 0);
+        assert_eq!(m.open_debt, 0);
+        assert_eq!(before, total(&m, &[&a]));
+        check_solvency(&m).unwrap();
+        close_market(&mut m, close_t).unwrap();
     }
 }

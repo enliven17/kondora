@@ -243,6 +243,23 @@ await send(keeper, [ix.sweep({ payer: keeper.publicKey, marketId: 2n })]);
 await send(keeper, [ix.claim({ payer: keeper.publicKey, owner: admin.publicKey, marketId: 2n })]);
 
 // ── Global accounting: vault USDC == every internal claim on it ──────────
+// A trader cannot cash out their own price impact at the pre-close mark.
+const t3 = await now();
+const close3 = t3 + 3n * 86_400n;
+await send(creator, [ix.createMarket({ creator: creator.publicKey, marketId: 3n, category: 0, questionHash: qh, rulesHash: qh, closeTime: close3, z0: 0, subsidy: 50n * USDC, lend: 100n * USDC })]);
+await setTime(close3 - 3601n);
+const aliceBeforeForce = (await user(alice)).balance;
+await send(alice, [ix.openPosition({ signer: alice.publicKey, authority: alice.publicKey, marketId: 3n, side: SIDE.YES, margin: 20n * USDC, levBps: 11_000n, minShares: 0n })]);
+await setTime(close3 - 300n);
+await send(keeper, [ix.liquidate({ payer: keeper.publicKey, owner: alice.publicKey, marketId: 3n, side: SIDE.YES })]);
+ok("force close cannot monetize own price impact", (await user(alice)).balance <= aliceBeforeForce);
+ok("force close repays debt", (await market(3n)).debt_positions === 0 && (await market(3n)).open_debt === 0n);
+await setTime(close3);
+await send(keeper, [ix.closeMarket({ payer: keeper.publicKey, marketId: 3n })]);
+await send(oracle, [ix.proposeResolution({ oracle: oracle.publicKey, marketId: 3n, outcome: OUTCOME.YES, evidenceHash: ev })]);
+await setTime(close3 + 901n);
+await send(keeper, [ix.finalize({ payer: keeper.publicKey, marketId: 3n }), ix.sweep({ payer: keeper.publicKey, marketId: 3n })]);
+
 const vault = await tokenBal(vaultPda());
 const owed = (await config()).house_free + (await user(alice)).balance + (await user(bob)).balance + (await user(admin)).balance;
 ok("vault equals internal ledger", vault >= owed && vault - owed <= 4n, `vault ${vault} owed ${owed}`);
