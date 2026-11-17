@@ -3,10 +3,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   turbopack: { root: process.cwd() },
-  images: {
-    formats: ["image/avif", "image/webp"],
-    qualities: [70, 75, 85],
-  },
+  // Art ships pre-optimized as WebP; serving it directly avoids the Vercel
+  // image optimization quota (free plan) entirely.
+  images: { unoptimized: true },
   async headers() {
     return [
       {
