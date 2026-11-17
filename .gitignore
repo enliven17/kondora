@@ -24,3 +24,6 @@ npm-debug.log*
 program/tests/svm-bridge/target/
 
 .vercel
+
+# soak run output
+.soak/
