@@ -121,10 +121,10 @@ export async function resolvePrice(spec: Extract<ResolutionSpec, { kind: "price"
   ];
   const side = (p: number) => (spec.op === "above" ? p > spec.threshold : p < spec.threshold);
   const prices = [cg, bn].filter((p): p is number => p !== null && p > 0);
-  if (!prices.length) {
+  if (prices.length !== 2) {
     return now > spec.at + 2 * DAY
-      ? { verdict: "invalid", confidence: 0.9, method: "price", reasoning: "No price source available after 48h", evidence }
-      : { verdict: "pending", confidence: 0, method: "price", reasoning: "Waiting for price data", evidence };
+      ? { verdict: "invalid", confidence: 0.9, method: "price", reasoning: "Two independent price sources unavailable after 48h", evidence }
+      : { verdict: "pending", confidence: 0, method: "price", reasoning: "Waiting for both independent price sources", evidence };
   }
   const sides = prices.map(side);
   if (sides.every((s) => s === sides[0])) {

@@ -140,7 +140,8 @@ export const hasAnyLlm = (role: Role) => (["gemini", "groq", "harbor"] as Provid
 /** Untrusted text from the web goes inside this fence; prompts say to ignore instructions in it. */
 export function fence(label: string, text: string, max = 6000): string {
   const clean = text.replace(/<\/?untrusted[^>]*>/gi, "").slice(0, max);
-  return `<untrusted source="${label}">\n${clean}\n</untrusted>`;
+  const source = label.replace(/[&<>"']/g, "_").slice(0, 300);
+  return `<untrusted source="${source}">\n${clean}\n</untrusted>`;
 }
 
 export const INJECTION_RULE =

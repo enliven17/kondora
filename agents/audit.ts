@@ -36,8 +36,11 @@ JSON: {"verdict":"yes"|"no"|"invalid"|"pending","confidence":0..1,"reasoning":"s
         .map((e, i) => fence(`${i + 1} ${e.source}`, e.excerpt, 1200))
         .join("\n")}`,
     });
+    if (!["yes", "no", "invalid", "pending"].includes(r.data.verdict) || typeof r.data.confidence !== "number" || !Number.isFinite(r.data.confidence) || r.data.confidence < 0 || r.data.confidence > 1) {
+      throw new Error("invalid audit verdict");
+    }
     verdict = r.data.verdict;
-    confidence = Math.min(1, Math.max(0, Number(r.data.confidence) || 0));
+    confidence = r.data.confidence;
     reasoning = String(r.data.reasoning ?? "").slice(0, 600);
     method = `audit-llm/${r.provider}/${r.model}`;
   } else {

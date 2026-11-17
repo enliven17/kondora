@@ -98,7 +98,7 @@ export async function resolvePolymarket(spec: Extract<ResolutionSpec, { kind: "p
   const m = await getJson<GammaMarket>(url);
   const prices = parseArr(m.outcomePrices).map(Number);
   const evidence = [{ source: "Polymarket Gamma", url, fetchedAt: now, excerpt: JSON.stringify({ closed: m.closed, uma: m.umaResolutionStatus, prices }) }];
-  const final = m.closed && /resolved/i.test(m.umaResolutionStatus ?? "resolved");
+  const final = m.closed === true && m.umaResolutionStatus === "resolved";
   const pYes = prices[spec.yesIndex];
   if (final && (pYes === 1 || pYes === 0)) {
     return { verdict: pYes === 1 ? "yes" : "no", confidence: 0.99, method: "polymarket", reasoning: `Polymarket resolved ${pYes === 1 ? "Yes" : "No"}`, evidence };

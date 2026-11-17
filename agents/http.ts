@@ -33,13 +33,13 @@ export function isPublicHttpsUrl(raw: string): boolean {
 }
 
 /** Fetches text with manual redirects (each hop re-checked), a timeout and a size cap. */
-export async function getText(url: string, timeoutMs = 15_000): Promise<string> {
+export async function getText(url: string, timeoutMs = 15_000, allowed?: (url: string) => boolean): Promise<string> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     let next = url;
     for (let hop = 0; hop < 4; hop++) {
-      if (!isPublicHttpsUrl(next)) throw new Error(`blocked url ${next}`);
+      if (!isPublicHttpsUrl(next) || (allowed && !allowed(next))) throw new Error(`blocked url ${next}`);
       const r = await fetch(next, { headers: { "user-agent": UA }, signal: ctrl.signal, redirect: "manual" });
       if (r.status >= 300 && r.status < 400) {
         const loc = r.headers.get("location");
@@ -89,6 +89,7 @@ export interface RssItem {
   link: string;
   pubDate: number;
   source: string;
+  sourceUrl?: string;
 }
 
 export function parseRss(xml: string, source: string): RssItem[] {
@@ -100,7 +101,8 @@ export function parseRss(xml: string, source: string): RssItem[] {
         .trim();
     const title = htmlToText(pick("title"));
     if (!title) continue;
-    items.push({ title, link: pick("link"), pubDate: Math.floor(Date.parse(pick("pubDate")) / 1000) || 0, source });
+    const publisherUrl = m[1].match(/<source\b[^>]*\burl=["']([^"']+)["']/i)?.[1];
+    items.push({ title, link: pick("link"), pubDate: Math.floor(Date.parse(pick("pubDate")) / 1000) || 0, source: htmlToText(pick("source")) || source, sourceUrl: publisherUrl });
   }
   return items;
 }

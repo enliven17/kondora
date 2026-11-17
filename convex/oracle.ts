@@ -80,6 +80,9 @@ export const run = internalAction({
         }
       }
 
+      // Audit fresh proposals before other lifecycle work can consume their window.
+      const audited = process.env.AUDITOR_SECRET ? await runAudit(ctx).catch((e) => `audit: ${String(e).slice(0, 120)}`) : "audit off";
+
       // 3. Finalize proposals whose window passed.
       for (const m of await ctx.runQuery(internal.markets.byStatus, { status: "proposed" })) {
         if (m.chainId === undefined) continue;
@@ -111,8 +114,6 @@ export const run = internalAction({
 
       const note = log.join("; ").slice(0, 280) || "idle";
       if (log.length) await ctx.runMutation(internal.markets.agentRun, { agent: "Oracle", role: "oracle", ok: true, note });
-      // The auditor runs right after, in the same action, to save a cold start.
-      const audited = process.env.AUDITOR_SECRET ? await runAudit(ctx).catch((e) => `audit: ${String(e).slice(0, 120)}`) : "audit off";
       return `${note} | ${audited}`;
     } catch (e) {
       await ctx.runMutation(internal.markets.agentRun, { agent: "Oracle", role: "oracle", ok: false, note: String(e) });
@@ -158,34 +159,45 @@ async function runAudit(ctx: Ctx): Promise<string> {
       const auditor = keypairFromEnv("AUDITOR_SECRET");
       const base = baseConnection();
       for (const m of await ctx.runQuery(internal.markets.byStatus, { status: "proposed" })) {
-        if (m.chainId === undefined || !m.outcome) continue;
-        if (await ctx.runQuery(internal.markets.lastVerdict, { marketId: m._id, role: "audit" })) continue;
-        const live = await fetchMarket(BigInt(m.chainId), base);
-        if (!live || live.account.state !== STATE.PROPOSED) continue;
-        const deadline = Number(live.account.proposed_at + live.account.params.dispute_secs);
-        if (nowSec() >= deadline - 20) continue;
-        const r = await auditProposal(
-          { marketKey: m.key, question: m.question, rules: m.rules, closeTime: m.closeTime, resolution: m.resolution },
-          m.outcome as "yes" | "no" | "invalid",
-        );
-        const evidenceHash = await sha256Hex(canonical({ market: m.key, audit: r }));
-        await ctx.runMutation(internal.markets.addVerdict, {
-          marketId: m._id, role: "audit", method: r.method, verdict: r.verdict, confidence: r.confidence, reasoning: r.reasoning, evidence: [], evidenceHash,
-        });
-        if (r.challenge) {
-          const sig = await sendIxs(base, auditor, [ix.challenge({ auditor: auditor.publicKey, marketId: BigInt(m.chainId) })]);
-          await ctx.runMutation(internal.markets.patch, { id: m._id, fields: { status: "disputed" } });
-          await ctx.runMutation(internal.markets.addTrail, {
-            marketId: m._id, kind: "challenged", actor: "auditor", agent: "Auditor",
-            note: `Challenged: auditor reads ${r.verdict.toUpperCase()} (${Math.round(r.confidence * 100)}%). ${r.reasoning.slice(0, 140)}`, sig,
+        try {
+          if (m.chainId === undefined || !m.outcome) continue;
+          const previous = await ctx.runQuery(internal.markets.lastVerdict, { marketId: m._id, role: "audit" });
+          if (previous?.verdict === m.outcome && previous.confidence >= 0.9) continue;
+          const live = await fetchMarket(BigInt(m.chainId), base);
+          if (!live || live.account.state !== STATE.PROPOSED) continue;
+          const deadline = Number(live.account.proposed_at + live.account.params.dispute_secs);
+          if (nowSec() >= deadline - 20) continue;
+          const r = previous && previous.verdict !== "pending" && previous.verdict !== m.outcome && previous.confidence >= 0.9
+            ? { ...previous, challenge: true, agrees: false }
+            : await auditProposal(
+            { marketKey: m.key, question: m.question, rules: m.rules, closeTime: m.closeTime, resolution: m.resolution },
+            m.outcome as "yes" | "no" | "invalid",
+          );
+          const evidenceHash = await sha256Hex(canonical({ market: m.key, audit: r }));
+          // Persist the verdict only once its challenge is on-chain. A failed
+          // transaction must leave this proposal eligible for the next audit.
+          const challengeSig = r.challenge
+            ? await sendIxs(base, auditor, [ix.challenge({ auditor: auditor.publicKey, marketId: BigInt(m.chainId) })])
+            : undefined;
+          await ctx.runMutation(internal.markets.addVerdict, {
+            marketId: m._id, role: "audit", method: r.method, verdict: r.verdict, confidence: r.confidence, reasoning: r.reasoning, evidence: [], evidenceHash,
           });
-          log.push(`#${m.chainId} challenged`);
-        } else {
-          await ctx.runMutation(internal.markets.addTrail, {
-            marketId: m._id, kind: "audited", actor: "auditor", agent: "Auditor",
-            note: r.agrees === null ? "Audit inconclusive, no challenge" : r.agrees ? "Audit agrees with the proposal" : "Audit disagrees but below challenge confidence",
-          });
-          log.push(`#${m.chainId} audited`);
+          if (r.challenge) {
+            await ctx.runMutation(internal.markets.patch, { id: m._id, fields: { status: "disputed" } });
+            await ctx.runMutation(internal.markets.addTrail, {
+              marketId: m._id, kind: "challenged", actor: "auditor", agent: "Auditor",
+              note: `Challenged: auditor reads ${r.verdict.toUpperCase()} (${Math.round(r.confidence * 100)}%). ${r.reasoning.slice(0, 140)}`, sig: challengeSig,
+            });
+            log.push(`#${m.chainId} challenged`);
+          } else {
+            await ctx.runMutation(internal.markets.addTrail, {
+              marketId: m._id, kind: "audited", actor: "auditor", agent: "Auditor",
+              note: r.agrees === null ? "Audit inconclusive, no challenge" : r.agrees ? "Audit agrees with the proposal" : "Audit disagrees but below challenge confidence",
+            });
+            log.push(`#${m.chainId} audited`);
+          }
+        } catch (e) {
+          log.push(`audit #${m.chainId}: ${String(e).slice(0, 120)}`);
         }
       }
       const note = log.join("; ").slice(0, 280) || "idle";

@@ -30,12 +30,13 @@ export async function gatherEvidence(question: string, sources: string[], at = n
   for (const url of sources.slice(0, 4)) {
     if (!isTrustedSource(url)) continue;
     try {
-      ev.push({ source: new URL(url).hostname, url, fetchedAt: at, excerpt: htmlToText(await getText(url)).slice(0, 3000) });
+      ev.push({ source: new URL(url).hostname, url, fetchedAt: at, excerpt: htmlToText(await getText(url, 15_000, isTrustedSource)).slice(0, 3000) });
     } catch {
       // unreachable source is simply absent from the bundle
     }
   }
   for (const n of await searchNews(question.replace(/\?$/, ""), 10)) {
+    if (!n.sourceUrl || !isTrustedSource(n.sourceUrl)) continue;
     ev.push({ source: n.source, url: n.link, fetchedAt: at, excerpt: `${new Date(n.pubDate * 1000).toISOString().slice(0, 10)} ${n.title}` });
   }
   return ev;
@@ -88,8 +89,8 @@ ${prior}
 Evidence:
 ${bundle || "(no evidence found)"}`,
       });
-      const prob = Math.min(1, Math.max(0, Number(r.data.probability)));
-      if (Number.isFinite(prob)) panel.push({ agent: p.name, model: `${r.provider}/${r.model}`, probability: prob, reasoning: String(r.data.reasoning ?? "").slice(0, 800) });
+      const prob = r.data.probability;
+      if (typeof prob === "number" && Number.isFinite(prob) && prob >= 0 && prob <= 1) panel.push({ agent: p.name, model: `${r.provider}/${r.model}`, probability: prob, reasoning: String(r.data.reasoning ?? "").slice(0, 800) });
     } catch {
       // a panelist that cannot answer is skipped; the stop index still applies
     }
@@ -99,8 +100,8 @@ ${bundle || "(no evidence found)"}`,
   const scores = panel.map((r) => ({ agent: r.agent, loss: ref ? crossEntropy(r.probability, ref.probability) : 0 }));
   const late = nowSec() > opts.closeTime + 7 * DAY;
   const base = { method: "council", evidence, panel, scores, seed };
-  if (!ref || panel.length < 2) {
-    return { ...base, verdict: late ? "invalid" : "pending", confidence: late ? 0.8 : 0, reasoning: "Council could not form a quorum" };
+  if (!ref || panel.length < 2 || !evidence.length || new Set(panel.map((r) => r.model.split("/")[0])).size < 2) {
+    return { ...base, verdict: late ? "invalid" : "pending", confidence: late ? 0.9 : 0, reasoning: "Council could not form an independent, evidence-backed quorum" };
   }
   const agreeYes = panel.filter((r) => r.probability >= 0.8).length / panel.length;
   const agreeNo = panel.filter((r) => r.probability <= 0.2).length / panel.length;
@@ -113,7 +114,7 @@ ${bundle || "(no evidence found)"}`,
   return {
     ...base,
     verdict: late ? "invalid" : "pending",
-    confidence: late ? 0.8 : 0,
+    confidence: late ? 0.9 : 0,
     reasoning: late ? "Council did not reach agreement within 7 days of close" : `Reference ${ref.agent} at ${ref.probability.toFixed(2)}; waiting for clearer evidence`,
   };
 }
