@@ -1,24 +1,22 @@
 import "./globals.css";
 
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
+import { Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import Script from "next/script";
 import type { ReactNode } from "react";
 
-import { SiteFooter } from "@/components/site/footer";
-import { SiteHeader } from "@/components/site/header";
 import { Splash, SPLASH_GATE_SCRIPT } from "@/components/site/splash";
 import { Providers } from "./providers";
 
-const display = Instrument_Serif({
-  subsets: ["latin"],
-  weight: "400",
-  style: ["normal", "italic"],
-  variable: "--font-display",
+const sans = localFont({
+  src: [
+    { path: "./fonts/Satoshi-Variable.woff2", style: "normal", weight: "300 900" },
+    { path: "./fonts/Satoshi-VariableItalic.woff2", style: "italic", weight: "300 900" },
+  ],
+  variable: "--font-sans",
   display: "swap",
 });
-
-const sans = Geist({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
 const mono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono", display: "swap" });
 
 export const metadata: Metadata = {
@@ -39,15 +37,14 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#05070D",
-  colorScheme: "dark",
+  themeColor: "#1B0A0E",
   width: "device-width",
   initialScale: 1,
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={`${display.variable} ${sans.variable} ${mono.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${sans.variable} ${mono.variable}`} suppressHydrationWarning>
       <body>
         {/* Hides the splash before first paint when it was already shown this session. */}
         <Script id="splash-gate" strategy="beforeInteractive">
@@ -55,15 +52,13 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         </Script>
         <a
           href="#main"
-          className="sr-only z-[100] rounded-sm bg-marble-50 px-4 py-2 text-night-950 focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+          className="sr-only z-[100] rounded-sm bg-acc px-4 py-2 text-acc-ink focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
         >
           Skip to content
         </a>
         <Providers>
           <Splash />
-          <SiteHeader />
-          <main id="main">{children}</main>
-          <SiteFooter />
+          {children}
         </Providers>
       </body>
     </html>

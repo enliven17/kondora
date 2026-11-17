@@ -9,28 +9,38 @@
  */
 @layer base {
   :root {
-    /* Night: backgrounds, deepest first */
-    --night-950: 5 7 13; /* #05070D */
-    --night-900: 10 15 28; /* #0A0F1C */
-    --night-800: 17 26 46; /* #111A2E */
-    --night-700: 27 38 64; /* #1B2640 */
-    --night-600: 41 55 88; /* #293758 */
+    /* Light marketing surfaces */
+    --paper: 255 243 245; /* #FFF3F5 */
+    --blush: 255 218 224; /* #FFDAE0 */
+    --petal: 255 199 207; /* #FFC7CF */
+    --petal-hot: 255 138 148; /* #FF8A94 */
 
-    /* Marble: text and light surfaces */
-    --marble-50: 243 238 228; /* #F3EEE4 */
-    --marble-200: 217 210 195; /* #D9D2C3 */
-    --marble-400: 158 153 141; /* #9E998D */
-    --marble-600: 107 104 97; /* #6B6861 */
+    /* Dark app surfaces */
+    --plum: 50 7 19; /* #320713 */
+    --cocoa: 35 5 13; /* #23050D */
+    --panel: 22 3 9; /* #160309 */
+    --panel-deep: 18 2 7; /* #120207 */
+    --ink: 5 1 2; /* #050102 */
+    --bg: 27 10 14; /* #1B0A0E */
 
-    --line: 35 49 80; /* #233150 */
+    /* Text */
+    --fg: 251 243 244; /* #FBF3F4 */
+    --haze: 158 135 141; /* #9E878D */
+    --mauve: 122 94 102; /* #7A5E66 */
+    --mauve-soft: 80 54 62; /* #50363E */
+    --muted: 168 150 155; /* #A8969B */
 
-    /* Signals: patina for YES, terracotta for NO */
-    --yes: 126 196 164; /* #7EC4A4 */
-    --yes-soft: 22 48 44; /* #16302C */
-    --no: 222 132 108; /* #DE846C */
-    --no-soft: 52 28 28; /* #341C1C */
-
-    --gold: 184 155 94; /* #B89B5E */
+    /* Signals */
+    --acc: 255 252 143; /* #FFFC8F */
+    --acc-hover: 255 253 184; /* #FFFDB8 */
+    --acc-ink: 20 2 6; /* #140206 */
+    --up: 52 213 127; /* #34D57F */
+    --up-soft: 18 58 38; /* #123A26 */
+    --down: 224 52 75; /* #E0344B */
+    --down-soft: 70 14 24; /* #460E18 */
+    --gold: 229 203 0; /* #E5CB00 */
+    --online: 69 183 140; /* #45B78C */
+    --line: 255 255 255; /* used with alpha: border-line/10 */
 
     --header-h: 4rem;
     --page-x: clamp(1rem, 4vw, 2.5rem);
@@ -39,12 +49,12 @@
   }
 
   * {
-    @apply border-line;
+    border-color: rgb(var(--line) / 0.08);
   }
 
   html {
     -webkit-text-size-adjust: 100%;
-    background: rgb(var(--night-950));
+    background: rgb(var(--bg));
   }
 
   html.lenis,
@@ -61,18 +71,19 @@
   }
 
   body {
-    @apply bg-night-950 font-sans text-marble-50 antialiased;
+    @apply bg-bg font-sans text-fg antialiased;
+    font-feature-settings: "ss01", "cv11";
     overflow-x: clip;
     min-height: 100dvh;
   }
 
   ::selection {
-    background: rgb(var(--gold) / 0.35);
-    color: rgb(var(--marble-50));
+    background: rgb(var(--acc) / 0.85);
+    color: rgb(var(--acc-ink));
   }
 
   :focus-visible {
-    outline: 2px solid rgb(var(--gold));
+    outline: 2px solid rgb(var(--petal-hot));
     outline-offset: 2px;
   }
 
@@ -118,25 +129,25 @@ html[data-splash="seen"] [data-splash-root] {
 
 /* Wallet adapter modal, restyled to Kondora tokens */
 .wallet-adapter-modal-wrapper {
-  background: rgb(var(--night-900)) !important;
-  border: 1px solid rgb(var(--line));
+  background: rgb(var(--panel)) !important;
+  border: 1px solid rgb(var(--line) / 0.1);
   border-radius: 6px !important;
   box-shadow: 0 24px 80px rgb(0 0 0 / 0.6) !important;
   font-family: var(--font-sans), system-ui, sans-serif !important;
 }
 .wallet-adapter-modal-title {
-  font-family: var(--font-display), Georgia, serif !important;
-  font-weight: 400 !important;
+  font-family: var(--font-sans), system-ui, sans-serif !important;
+  font-weight: 600 !important;
   font-size: 28px !important;
-  color: rgb(var(--marble-50)) !important;
+  color: rgb(var(--fg)) !important;
 }
 .wallet-adapter-modal-overlay {
-  background: rgb(var(--night-950) / 0.8) !important;
+  background: rgb(var(--ink) / 0.8) !important;
   backdrop-filter: blur(6px);
 }
 .wallet-adapter-modal-button-close {
   border-radius: 4px !important;
-  background: rgb(var(--night-800)) !important;
+  background: rgb(var(--cocoa)) !important;
 }
 .wallet-adapter-modal-list .wallet-adapter-button {
   border-radius: 4px !important;
@@ -144,12 +155,12 @@ html[data-splash="seen"] [data-splash-root] {
   font-weight: 500 !important;
 }
 .wallet-adapter-modal-list .wallet-adapter-button:not([disabled]):hover {
-  background: rgb(var(--night-800)) !important;
+  background: rgb(var(--cocoa)) !important;
 }
 .wallet-adapter-modal-list-more {
   font-family: var(--font-mono), monospace !important;
   font-size: 12px !important;
-  color: rgb(var(--marble-400)) !important;
+  color: rgb(var(--muted)) !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -176,8 +187,8 @@ html[data-splash="seen"] [data-splash-root] {
 /* Skeleton shimmer (stops under reduced motion via the global rule). */
 @layer components {
   .skeleton {
-    background-color: rgb(var(--night-800));
-    background-image: linear-gradient(90deg, transparent 0%, rgb(var(--marble-50) / 0.06) 50%, transparent 100%);
+    background-color: rgb(var(--cocoa));
+    background-image: linear-gradient(90deg, transparent 0%, rgb(var(--fg) / 0.06) 50%, transparent 100%);
     background-size: 200% 100%;
     background-repeat: no-repeat;
     animation: skeleton-shimmer 1.4s ease-in-out infinite;
