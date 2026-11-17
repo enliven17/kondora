@@ -56,11 +56,14 @@ const ROLE_LABEL: Record<AgentRole, string> = {
   oracle: "Oracle",
   auditor: "Auditor",
   admin: "Admin",
+  crank: "Crank",
 };
 
 const KIND_LABEL: Record<OracleEvent["kind"], string> = {
   created: "Opened",
+  closed: "Trading closed",
   proposed: "Proposed",
+  audited: "Audited",
   challenged: "Challenged",
   ruled: "Ruled",
   finalized: "Finalized",
@@ -153,6 +156,13 @@ export function ActivityList({ activity }: { activity: Activity[] }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-line/[0.07]">
+            {activity.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-5 py-10 text-center text-sm text-muted">
+                  No trades yet. The first bet on this market shows up here.
+                </td>
+              </tr>
+            )}
             {activity.map((a) => (
               <tr key={a.id}>
                 <td className="px-4 py-2.5 font-mono text-xs text-muted sm:px-5">{a.trader}</td>

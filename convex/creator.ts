@@ -26,11 +26,16 @@ export const run = internalAction({
       const lend = usdc("MARKET_LEND_USDC", 100);
       const maxNew = Number(process.env.CREATOR_MAX_PER_RUN ?? 20);
 
+      // Skip the whole planning pass (sources + LLM) when the House cannot fund a market.
+      const start = await fetchConfig(conn);
+      if (!start || start.house_free < subsidy + lend) return "house liquidity too low, skipped";
+      const affordable = Number(start.house_free / (subsidy + lend));
+
       const { keys, openByCategory } = await ctx.runQuery(internal.markets.keysAndCounts, {});
       const plan = await planMarkets({
         existingKeys: new Set(keys),
         openByCategory: openByCategory as Partial<Record<Category, number>>,
-        maxNew,
+        maxNew: Math.min(maxNew, affordable),
       });
 
       for (const c of plan) {

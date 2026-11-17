@@ -42,11 +42,11 @@ export interface ResolutionSource {
   field: string;
 }
 
-export type AgentRole = "creator" | "oracle" | "auditor" | "admin";
+export type AgentRole = "creator" | "oracle" | "auditor" | "admin" | "crank";
 
 export interface OracleEvent {
   t: number;
-  kind: "created" | "proposed" | "challenged" | "finalized" | "ruled";
+  kind: "created" | "closed" | "proposed" | "audited" | "challenged" | "finalized" | "ruled";
   actor: AgentRole;
   /** Agent display name, e.g. "Creator 01". */
   agent: string;

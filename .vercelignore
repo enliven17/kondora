@@ -1,0 +1,6 @@
+program/
+cli/
+scripts/
+.keys/
+*.log
+brand/scripts/
