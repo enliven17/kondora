@@ -126,7 +126,7 @@ export function Hero({ stats }: { stats: HeroStats }) {
               Browse markets
             </ButtonLink>
           </Magnetic>
-          <ButtonLink href="/#how" variant="secondary" size="lg">
+          <ButtonLink href="/#how" variant="outline" size="lg">
             How it works
           </ButtonLink>
         </div>
