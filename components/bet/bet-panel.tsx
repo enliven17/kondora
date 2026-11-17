@@ -14,7 +14,7 @@ import { useLiveMarket } from "@/hooks/use-live-market";
 import { useNow } from "@/hooks/use-now";
 import { formatCents, formatLeverage, formatNumber, formatPct, formatUsd, formatUsdSigned } from "@/lib/format";
 import { amm } from "@/lib/kondora";
-import { type CapParams, type CapReason, leverageCap, PROTOCOL, quoteBet, sidePrice } from "@/lib/leverage";
+import { type CapParams, type CapReason, leverageCap, maxFeasibleLeverage, maxFeasibleMargin, PROTOCOL, quoteBet, sidePrice } from "@/lib/leverage";
 import type { TxLink as TxLinkData } from "@/lib/trade";
 import { enableTrading, placeBet } from "@/lib/trade-lazy";
 import type { Market, Side } from "@/lib/types";
@@ -90,8 +90,21 @@ export function BetPanel({ market, initialSide = "yes", initialAmount = 5, serve
     [params],
   );
   const { cap, reason } = useMemo(() => leverageCap(yesPrice, market.closeTime, now, capParams), [yesPrice, market.closeTime, now, capParams]);
-  const lev = Math.min(leverage, cap);
   const margin = Number.parseFloat(amountText) || 0;
+  // What this pool can actually fill: the slider never goes past it, so the
+  // panel never shows an empty quote for an impossible size.
+  const quoteArgs = useMemo(
+    () => [view, side, live?.pool, params ? params.max_price_bps / amm.BPS : undefined, live?.floorL] as const,
+    [view, side, live?.pool, params, live?.floorL],
+  );
+  const feasible = useMemo(() => maxFeasibleLeverage([...quoteArgs], margin, cap), [quoteArgs, margin, cap]);
+  const tooLarge = margin > 0 && feasible === 0;
+  const sizeCap = tooLarge ? 1 : Math.min(cap, feasible);
+  const lev = Math.min(leverage, sizeCap);
+  const maxAtLev = useMemo(
+    () => maxFeasibleMargin([...quoteArgs], tooLarge ? 1 : lev, Math.max(margin, 10_000)),
+    [quoteArgs, lev, tooLarge, margin],
+  );
   const quote = useMemo(
     () => quoteBet(view, side, margin, lev, live?.pool, params ? params.max_price_bps / amm.BPS : undefined, live?.floorL),
     [view, side, margin, lev, live?.pool, params, live?.floorL],
@@ -103,7 +116,15 @@ export function BetPanel({ market, initialSide = "yes", initialAmount = 5, serve
   const overBalance = balance !== null && margin > balance;
   const chainState = live?.account.state;
   const closed = market.state !== "open" || now >= market.closeTime || (chainState !== undefined && chainState !== 0);
-  const blocked = blockReason(margin, minTrade, overBalance, quote.priceLimitHit, quote.unhealthy);
+  const blocked = tooLarge
+    ? `Too large for this pool, max ${formatUsd(maxAtLev)} at 1x`
+    : blockReason(margin, minTrade, overBalance, quote.priceLimitHit, quote.unhealthy);
+  const sizeNote =
+    tooLarge
+      ? `This pool can take up to ${formatUsd(maxAtLev)} right now.`
+      : feasible < cap && margin > 0
+        ? `Max ${feasible.toFixed(1)}x for ${formatUsd(margin)} in this pool. Lower the amount for more leverage.`
+        : CAP_NOTES[reason];
   const dismiss = useCallback(() => setConfirmed(null), []);
 
   if (closed) {
@@ -250,14 +271,15 @@ export function BetPanel({ market, initialSide = "yes", initialAmount = 5, serve
             ))}
             <button
               type="button"
-              disabled={balance === null}
-              onClick={() => balance !== null && setAmountText(String(Math.floor(balance * 100) / 100))}
-              aria-pressed={balance !== null && balance > 0 && margin === Math.floor(balance * 100) / 100}
+              onClick={() => {
+                // Max = the largest size this pool fills at the current leverage, capped by your balance.
+                const poolMax = maxFeasibleMargin([...quoteArgs], lev, balance ?? 10_000);
+                setAmountText(String(Math.floor(Math.min(poolMax, balance ?? poolMax) * 100) / 100));
+              }}
+              aria-pressed={false}
               className={cn(
                 "h-8 rounded-sm text-xs font-semibold transition-colors disabled:opacity-40",
-                balance !== null && balance > 0 && margin === Math.floor(balance * 100) / 100
-                  ? "bg-acc text-acc-ink"
-                  : "bg-fg/5 text-muted hover:bg-fg/10 hover:text-fg",
+                "bg-fg/5 text-muted hover:bg-fg/10 hover:text-fg",
               )}
             >
               Max
@@ -265,7 +287,7 @@ export function BetPanel({ market, initialSide = "yes", initialAmount = 5, serve
           </div>
         </div>
 
-        <LeverageSlider value={lev} onChange={setLeverage} cap={cap} disabled={reason === "reduce-only"} note={CAP_NOTES[reason]} />
+        <LeverageSlider value={lev} onChange={setLeverage} cap={sizeCap} disabled={reason === "reduce-only" || tooLarge} note={sizeNote} />
 
         <div className="rounded-lg bg-panel-deep/80 p-4">
           <div className="flex items-end justify-between gap-3" aria-live="polite">

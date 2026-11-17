@@ -102,6 +102,45 @@ export interface BetQuote {
   unhealthy: boolean;
 }
 
+type QuoteArgs = [Pick<Market, "yesPrice" | "liquidity">, Side, PoolState | undefined, number | undefined, number | undefined];
+
+/** True when the program would accept this size: fills, stays under the price cap, healthy at spot and floor. */
+function fillable([market, side, pool, maxSide, floorL]: QuoteArgs, margin: number, leverage: number): boolean {
+  const q = quoteBet(market, side, margin, leverage, pool, maxSide, floorL);
+  return q.shares > 0 && !q.priceLimitHit && !q.unhealthy;
+}
+
+/**
+ * Highest leverage (0.1 steps, up to `cap`) the pool can fill for this margin.
+ * Returns 0 when even 1x does not fit, so the UI can ask for a smaller amount.
+ */
+export function maxFeasibleLeverage(args: QuoteArgs, margin: number, cap: number): number {
+  if (!(margin > 0)) return cap;
+  if (!fillable(args, margin, 1)) return 0;
+  let lo = 10;
+  let hi = Math.floor(cap * 10 + 1e-9);
+  if (fillable(args, margin, hi / 10)) return hi / 10;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (fillable(args, margin, mid / 10)) lo = mid;
+    else hi = mid;
+  }
+  return lo / 10;
+}
+
+/** Largest margin (cents precision) that fills at this leverage, searched up to `upper`. */
+export function maxFeasibleMargin(args: QuoteArgs, leverage: number, upper: number): number {
+  let lo = 0;
+  let hi = Math.max(0, Math.floor(upper * 100));
+  if (hi > 0 && fillable(args, hi / 100, leverage)) return hi / 100;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (fillable(args, mid / 100, leverage)) lo = mid;
+    else hi = mid;
+  }
+  return lo / 100;
+}
+
 /** Quote a bet. Pass the live on-chain pool when available; otherwise the pool is estimated from the market's price and cash. */
 export function quoteBet(
   market: Pick<Market, "yesPrice" | "liquidity">,
