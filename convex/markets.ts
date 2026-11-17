@@ -382,3 +382,70 @@ export const setCursor = internalMutation({
     else await ctx.db.insert("cursors", { name, value });
   },
 });
+
+/** Everything the indexer needs in one read. */
+export const syncState = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const out = [];
+    for (const status of ["open", "closed"] as const) {
+      for (const m of await ctx.db.query("markets").withIndex("by_status", (q) => q.eq("status", status)).take(300)) {
+        if (m.chainId === undefined) continue;
+        const last = await ctx.db.query("ticks").withIndex("by_market_t", (q) => q.eq("marketId", m._id)).order("desc").first();
+        out.push({ id: m._id, chainId: m.chainId, trades: m.trades, volume: m.volume, lastP: last?.p ?? m.priceYes, lastT: last?.t ?? 0 });
+      }
+    }
+    return out;
+  },
+});
+
+export const recordSyncBatch = internalMutation({
+  args: {
+    rows: v.array(
+      v.object({
+        id: v.id("markets"),
+        priceYes: v.number(),
+        volume: v.number(),
+        liquidity: v.number(),
+        trades: v.number(),
+        tick: v.boolean(),
+        tickVolume: v.number(),
+      }),
+    ),
+  },
+  handler: async (ctx, { rows }) => {
+    const t = nowSec();
+    for (const r of rows) {
+      await ctx.db.patch(r.id, { priceYes: r.priceYes, volume: r.volume, liquidity: r.liquidity, trades: r.trades, updatedAt: Date.now() });
+      if (r.tick) await ctx.db.insert("ticks", { marketId: r.id, t, p: r.priceYes, v: r.tickVolume });
+    }
+  },
+});
+
+export const insertTradesAndCursor = internalMutation({
+  args: { rows: v.array(v.any()), cursorName: v.string(), cursor: v.string() },
+  handler: async (ctx, { rows, cursorName, cursor }) => {
+    let added = 0;
+    for (const r of rows as Omit<Doc<"trades">, "_id" | "_creationTime">[]) {
+      const dupes = await ctx.db.query("trades").withIndex("by_sig", (q) => q.eq("sig", r.sig)).collect();
+      if (dupes.some((d) => d.owner === r.owner && d.kind === r.kind && d.side === r.side)) continue;
+      const first = !(await ctx.db
+        .query("trades")
+        .withIndex("by_owner_t", (q) => q.eq("owner", r.owner))
+        .filter((q) => q.eq(q.field("marketId"), r.marketId))
+        .first());
+      await ctx.db.insert("trades", r);
+      added++;
+      if (first) {
+        const m = await ctx.db.get(r.marketId as Id<"markets">);
+        if (m) await ctx.db.patch(m._id, { traders: m.traders + 1 });
+      }
+    }
+    if (cursor) {
+      const row = await ctx.db.query("cursors").withIndex("by_name", (q) => q.eq("name", cursorName)).first();
+      if (row) await ctx.db.patch(row._id, { value: cursor });
+      else await ctx.db.insert("cursors", { name: cursorName, value: cursor });
+    }
+    return added;
+  },
+});

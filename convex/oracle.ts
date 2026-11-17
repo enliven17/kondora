@@ -3,7 +3,7 @@
 // sources or the council, propose on-chain, finalize after the dispute window,
 // and let the arbiter rule on disputes.
 
-import { internalAction } from "./_generated/server";
+import { ActionCtx, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Doc } from "./_generated/dataModel";
 import { resolveMarket } from "../agents/oracle";
@@ -21,7 +21,7 @@ const OUT_NAME = ["none", "yes", "no", "invalid"];
 export const run = internalAction({
   args: {},
   handler: async (ctx) => {
-    if (off()) return "backend off";
+    if (off() || !process.env.ORACLE_SECRET) return "off";
     if (!(await ctx.runMutation(internal.markets.acquireLock, { name: "oracle", ttlMs: 8 * 60_000 }))) return "locked";
     const log: string[] = [];
     try {
@@ -110,8 +110,10 @@ export const run = internalAction({
       }
 
       const note = log.join("; ").slice(0, 280) || "idle";
-      await ctx.runMutation(internal.markets.agentRun, { agent: "Oracle", role: "oracle", ok: true, note });
-      return note;
+      if (log.length) await ctx.runMutation(internal.markets.agentRun, { agent: "Oracle", role: "oracle", ok: true, note });
+      // The auditor runs right after, in the same action, to save a cold start.
+      const audited = process.env.AUDITOR_SECRET ? await runAudit(ctx).catch((e) => `audit: ${String(e).slice(0, 120)}`) : "audit off";
+      return `${note} | ${audited}`;
     } catch (e) {
       await ctx.runMutation(internal.markets.agentRun, { agent: "Oracle", role: "oracle", ok: false, note: String(e) });
       throw e;
@@ -121,7 +123,7 @@ export const run = internalAction({
   },
 });
 
-type Ctx = Parameters<Parameters<typeof internalAction>[0]["handler"]>[0];
+type Ctx = ActionCtx;
 
 async function markResolved(ctx: Ctx, m: Doc<"markets">, outcome: string, kind: "finalized" | "ruled", agent: string, note: string) {
   await ctx.runMutation(internal.markets.patch, { id: m._id, fields: { status: "resolved", outcome, resolvedAt: nowSec() } });
@@ -150,11 +152,7 @@ async function arbitrate(ctx: Ctx, m: Doc<"markets">) {
 }
 
 /** Auditor: blind re-derivation of each fresh proposal, challenges when confident. */
-export const audit = internalAction({
-  args: {},
-  handler: async (ctx) => {
-    if (off()) return "backend off";
-    if (!(await ctx.runMutation(internal.markets.acquireLock, { name: "audit", ttlMs: 8 * 60_000 }))) return "locked";
+async function runAudit(ctx: Ctx): Promise<string> {
     const log: string[] = [];
     try {
       const auditor = keypairFromEnv("AUDITOR_SECRET");
@@ -191,13 +189,10 @@ export const audit = internalAction({
         }
       }
       const note = log.join("; ").slice(0, 280) || "idle";
-      await ctx.runMutation(internal.markets.agentRun, { agent: "Auditor", role: "audit", ok: true, note });
+      if (log.length) await ctx.runMutation(internal.markets.agentRun, { agent: "Auditor", role: "audit", ok: true, note });
       return note;
     } catch (e) {
       await ctx.runMutation(internal.markets.agentRun, { agent: "Auditor", role: "audit", ok: false, note: String(e) });
       throw e;
-    } finally {
-      await ctx.runMutation(internal.markets.releaseLock, { name: "audit" });
     }
-  },
-});
+}

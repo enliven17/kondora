@@ -15,7 +15,7 @@ const usdc = (name: string, dflt: number) => BigInt(Math.round(Number(process.en
 export const run = internalAction({
   args: {},
   handler: async (ctx) => {
-    if (off()) return "backend off";
+    if (off() || !process.env.CREATOR_SECRET) return "off";
     if (!(await ctx.runMutation(internal.markets.acquireLock, { name: "creator", ttlMs: 10 * 60_000 }))) return "locked";
     let opened = 0;
     let note = "";

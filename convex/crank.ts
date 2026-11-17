@@ -2,12 +2,11 @@
 // Crank: liquidations and pre-close force closes inside the ER, sweeps of
 // resolved markets on the base layer. Permissionless instructions, any key works.
 
-import { internalAction } from "./_generated/server";
+import { ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { DELEGATION_PROGRAM_ID, STATE, amm, decodeMarket, ix, marketPda, MarketAccount } from "../lib/kondora";
 import { baseConnection, erConnection, erUserAccounts, keypairFromEnv, sendIxs } from "../lib/kondora/server";
 
-const off = () => process.env.KONDORA_BACKEND_OFF === "1";
 const nowSec = () => Math.floor(Date.now() / 1000);
 
 function borrowFee(debt: bigint, bpsPerHour: number, dt: number): bigint {
@@ -15,11 +14,8 @@ function borrowFee(debt: bigint, bpsPerHour: number, dt: number): bigint {
   return (debt * BigInt(bpsPerHour) * BigInt(dt)) / 36_000_000n;
 }
 
-export const run = internalAction({
-  args: {},
-  handler: async (ctx) => {
-    if (off()) return "backend off";
-    if (!(await ctx.runMutation(internal.markets.acquireLock, { name: "crank", ttlMs: 2 * 60_000 }))) return "locked";
+/** Crank helper, called from tick.ts. */
+export async function runCrank(ctx: ActionCtx): Promise<string> {
     const log: string[] = [];
     try {
       const crank = keypairFromEnv("CRANK_SECRET");
@@ -77,9 +73,6 @@ export const run = internalAction({
     } catch (e) {
       await ctx.runMutation(internal.markets.agentRun, { agent: "Crank", role: "crank", ok: false, note: String(e) });
       throw e;
-    } finally {
-      await ctx.runMutation(internal.markets.releaseLock, { name: "crank" });
     }
-  },
-});
+}
 

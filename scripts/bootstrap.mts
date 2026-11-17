@@ -12,7 +12,7 @@ import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { DEVNET_USDC, ENDPOINTS, ER_VALIDATOR, configPda, decodeConfig, ix } from "../lib/kondora";
+import { DEFAULT_PARAMS, DEVNET_USDC, ENDPOINTS, ER_VALIDATOR, configPda, decodeConfig, ix } from "../lib/kondora/client";
 
 const arg = (k: string, d?: string) => {
   const i = process.argv.indexOf(`--${k}`);
@@ -20,7 +20,7 @@ const arg = (k: string, d?: string) => {
 };
 const conn = new Connection(process.env.SOLANA_RPC ?? ENDPOINTS.base, "confirmed");
 const load = (p: string) => Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(p, "utf8"))));
-const adminPath = process.env.ADMIN_KEYPAIR ?? join(homedir(), ".config", "solana", "id.json");
+const adminPath = process.env.ADMIN_KEYPAIR ?? join(homedir(), ".config", "solana", "talos-deploy.json");
 const admin = load(adminPath);
 
 mkdirSync(".keys", { recursive: true });
@@ -61,6 +61,8 @@ if (!existing) {
         oracle: roles.oracle.publicKey,
         auditor: roles.auditor.publicKey,
         validator: ER_VALIDATOR,
+        // Small markets: Circle devnet USDC is scarce, so trades start at 0.1 USDC.
+        params: { ...DEFAULT_PARAMS, min_trade: BigInt(Math.round(Number(arg("min-trade", "0.1")) * 1e6)) },
       }),
     ),
     [],
