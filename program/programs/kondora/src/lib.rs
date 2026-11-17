@@ -19,7 +19,7 @@ use errors::KondoraError;
 use events::*;
 use state::*;
 
-declare_id!("3h2nKsRRXsxnbX7R98R31PepeoEqdhm5GTrBGeh1KKCZ");
+declare_id!("BoZu45xZ4HFe4bvpYaGjcaDeqPaPTKSjMGYg5xFyXSuJ");
 
 /// Shortest market life the creator may open.
 pub const MIN_MARKET_SECS: i64 = 15 * 60;

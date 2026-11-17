@@ -18,7 +18,7 @@ const USDC = new PublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
 const DIR = join(".keys", "faucet");
 const FILE = join(DIR, "wallets.json");
 const conn = new Connection(process.env.SOLANA_RPC ?? "https://api.devnet.solana.com", "confirmed");
-const adminPath = process.env.ADMIN_KEYPAIR ?? join(homedir(), ".config", "solana", "talos-deploy.json");
+const adminPath = process.env.ADMIN_KEYPAIR ?? join(".keys", "admin.json");
 const loadWallets = () => JSON.parse(readFileSync(FILE, "utf8")).map((s) => Keypair.fromSecretKey(Uint8Array.from(s)));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 

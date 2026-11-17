@@ -20,7 +20,7 @@ const arg = (k: string, d?: string) => {
 };
 const conn = new Connection(process.env.SOLANA_RPC ?? ENDPOINTS.base, "confirmed");
 const load = (p: string) => Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(p, "utf8"))));
-const adminPath = process.env.ADMIN_KEYPAIR ?? join(homedir(), ".config", "solana", "talos-deploy.json");
+const adminPath = process.env.ADMIN_KEYPAIR ?? join(".keys", "admin.json");
 const admin = load(adminPath);
 
 mkdirSync(".keys", { recursive: true });

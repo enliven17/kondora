@@ -6,11 +6,11 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-kondora = "3h2nKsRRXsxnbX7R98R31PepeoEqdhm5GTrBGeh1KKCZ"
+kondora = "BoZu45xZ4HFe4bvpYaGjcaDeqPaPTKSjMGYg5xFyXSuJ"
 
 [programs.devnet]
-kondora = "3h2nKsRRXsxnbX7R98R31PepeoEqdhm5GTrBGeh1KKCZ"
+kondora = "BoZu45xZ4HFe4bvpYaGjcaDeqPaPTKSjMGYg5xFyXSuJ"
 
 [provider]
 cluster = "devnet"
-wallet = "~/.config/solana/talos-deploy.json"
+wallet = "../.keys/admin.json"

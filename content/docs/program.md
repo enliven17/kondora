@@ -7,7 +7,7 @@ section: Build
 
 # Program
 
-Program ID: `3h2nKsRRXsxnbX7R98R31PepeoEqdhm5GTrBGeh1KKCZ` (Solana devnet), Anchor 1.0.
+Program ID: `BoZu45xZ4HFe4bvpYaGjcaDeqPaPTKSjMGYg5xFyXSuJ` (Solana devnet), Anchor 1.0.
 
 ## Accounts
 
