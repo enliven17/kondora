@@ -132,6 +132,15 @@ export async function getRecentActivity(limit = 60): Promise<Activity[]> {
 }
 
 
+/** Traded notional per UTC day, oldest first (unix seconds of each day start). */
+export async function getDailyVolume(days = 14): Promise<{ day: number; volume: number }[]> {
+  const DAY = 86_400, today = Math.floor(Date.now() / 1000 / DAY) * DAY;
+  const empty = Array.from({ length: days }, (_, i) => ({ day: today - (days - 1 - i) * DAY, volume: 0 }));
+  if (CONVEX_ENABLED) return safe("stats.daily", async () => (await cachedQuery(api.stats.daily, { days })).map(({ day, volume }) => ({ day, volume })), empty);
+  const trades = await getRecentActivity(500);
+  return empty.map(({ day }) => ({ day, volume: trades.reduce((a, t) => (t.t >= day && t.t < day + DAY ? a + (t.kind === "open" ? t.amount * Math.max(1, t.leverage) : t.amount) : a), 0) }));
+}
+
 /** Minimal index for the header search. */
 export async function getSearchIndex(): Promise<SearchItem[]> {
   return (await getMarkets()).map(({ id, question, category, yesPrice, state }) => ({ id, question, category, yesPrice, state }));

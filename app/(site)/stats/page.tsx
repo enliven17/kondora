@@ -2,10 +2,9 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 import { ButtonLink } from "@/components/ui/button";
-import { unixNow } from "@/lib/clock";
 import { CATEGORY_META } from "@/lib/categories";
 import { NoMarkets } from "@/components/markets/no-markets";
-import { getMarkets, getRecentActivity, getStats } from "@/lib/data";
+import { getDailyVolume, getMarkets, getStats } from "@/lib/data";
 import { formatUsdCompact } from "@/lib/format";
 import { CATEGORIES, type Category, type Outcome } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -17,8 +16,6 @@ export const metadata: Metadata = {
 
 export const revalidate = 60;
 
-const DAY = 86_400;
-const TRADE_WINDOW = 200;
 const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 const int = new Intl.NumberFormat("en-US");
 const dayFmt = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
@@ -53,7 +50,7 @@ function Card({ label, aside, className, children }: { label: string; aside?: st
 }
 
 export default async function StatsPage() {
-  const [markets, stats, trades] = await Promise.all([getMarkets(), getStats(), getRecentActivity(TRADE_WINDOW)]);
+  const [markets, stats, daily] = await Promise.all([getMarkets(), getStats(), getDailyVolume(14)]);
   const settled = markets.filter((m) => m.state === "resolved" && m.outcome);
   const volume = stats.totalVolume;
   const liquidity = stats.liquidity;
@@ -63,14 +60,8 @@ export default async function StatsPage() {
   const totalOpen = Math.max(1, openCount);
   const byCategory = CATEGORIES.map((c) => ({ id: c, count: stats.byCategory[c] ?? 0 })).filter((c) => c.count > 0);
 
-  // Daily traded notional over the last 14 days, from the most recent trades.
-  const end = Math.ceil(unixNow() / DAY) * DAY;
-  const days = Array.from({ length: 14 }, (_, i) => {
-    const to = end - (13 - i) * DAY;
-    const from = to - DAY;
-    const v = trades.reduce((a, t) => (t.t > from && t.t <= to ? a + (t.kind === "open" ? t.amount * Math.max(1, t.leverage) : t.amount) : a), 0);
-    return { t: to, v };
-  });
+  // Daily traded notional over the last 14 UTC days, from the volumeDays buckets kept by the indexer.
+  const days = daily.map((d) => ({ t: d.day, v: d.volume }));
   const maxDay = Math.max(1, ...days.map((d) => d.v));
 
   const outcomes = (["yes", "no", "invalid"] as const).map((o) => ({ id: o, count: settled.filter((m) => m.outcome === o).length }));
@@ -154,7 +145,7 @@ export default async function StatsPage() {
         </Card>
       </div>
 
-      <Card label="Daily volume" aside={`Last 14 days, latest ${TRADE_WINDOW} trades`} className="mt-3">
+      <Card label="Daily volume" aside="Last 14 days, UTC" className="mt-3">
         <div className="flex h-48 items-end gap-1 sm:gap-2" role="img" aria-label="Daily traded volume over the last 14 days">
           {days.map((d, i) => (
             <div key={d.t} className="flex h-full min-w-0 flex-1 flex-col justify-end">

@@ -118,4 +118,7 @@ export default defineSchema({
 
   locks: defineTable({ name: v.string(), until: v.number() }).index("by_name", ["name"]),
   cursors: defineTable({ name: v.string(), value: v.string() }).index("by_name", ["name"]),
+
+  /** Traded notional per UTC day (unix seconds of the day start), kept as trades are indexed. */
+  volumeDays: defineTable({ day: v.number(), volume: v.number(), trades: v.number() }).index("by_day", ["day"]),
 });

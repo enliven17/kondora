@@ -18,6 +18,7 @@ import type * as http from "../http.js";
 import type * as indexer from "../indexer.js";
 import type * as markets from "../markets.js";
 import type * as oracle from "../oracle.js";
+import type * as stats from "../stats.js";
 import type * as tick from "../tick.js";
 
 import type {
@@ -37,6 +38,7 @@ declare const fullApi: ApiFromModules<{
   indexer: typeof indexer;
   markets: typeof markets;
   oracle: typeof oracle;
+  stats: typeof stats;
   tick: typeof tick;
 }>;
 

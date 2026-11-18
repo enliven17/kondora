@@ -2,11 +2,28 @@
 // by the agent actions.
 
 import { v } from "convex/values";
-import { internalMutation, internalQuery, query, QueryCtx } from "./_generated/server";
+import { internalMutation, internalQuery, MutationCtx, query, QueryCtx } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 import { marketStatus } from "./schema";
 
 const DAY = 86_400;
+export const VOLUME_DAYS_FROM = "volumeDaysFrom";
+
+/** Notional a trade adds to the daily volume: opens count at their leverage, closes and liquidations at their amount. */
+export const tradeNotional = (t: Pick<Doc<"trades">, "kind" | "amount" | "leverage">) => (t.kind === "open" ? t.amount * Math.max(1, t.leverage) : t.amount);
+
+/** Adds one trade to its UTC day bucket (volumeDays). */
+export async function bumpDay(ctx: MutationCtx, t: Pick<Doc<"trades">, "kind" | "amount" | "leverage" | "t">) {
+  const day = Math.floor(t.t / DAY) * DAY;
+  const row = await ctx.db.query("volumeDays").withIndex("by_day", (q) => q.eq("day", day)).first();
+  const add = tradeNotional(t);
+  if (row) await ctx.db.patch(row._id, { volume: row.volume + add, trades: row.trades + 1 });
+  else await ctx.db.insert("volumeDays", { day, volume: add, trades: 1 });
+}
+
+/** Day buckets are kept live once the backfill has started (stats.ts); before that the backfill owns them. */
+const liveDays = async (ctx: MutationCtx) => !!(await ctx.db.query("cursors").withIndex("by_name", (q) => q.eq("name", VOLUME_DAYS_FROM)).first());
+
 const nowSec = () => Math.floor(Date.now() / 1000);
 const uiState = (s: Doc<"markets">["status"]) => (s === "pending" || s === "failed" ? "open" : s);
 
@@ -322,12 +339,14 @@ export const insertTrades = internalMutation({
   args: { rows: v.array(v.any()) },
   handler: async (ctx, { rows }) => {
     let added = 0;
+    const live = await liveDays(ctx);
     for (const r of rows as Omit<Doc<"trades">, "_id" | "_creationTime">[]) {
       const key = `${r.sig}:${r.owner}:${r.kind}:${r.side}`;
       const dupes = await ctx.db.query("trades").withIndex("by_sig", (q) => q.eq("sig", r.sig)).collect();
       if (dupes.some((d) => `${d.sig}:${d.owner}:${d.kind}:${d.side}` === key)) continue;
       await ctx.db.insert("trades", r);
       added++;
+      if (live) await bumpDay(ctx, r);
       const m = await ctx.db.get(r.marketId as Id<"markets">);
       if (m) {
         const prior = await ctx.db
@@ -429,6 +448,7 @@ export const insertTradesAndCursor = internalMutation({
   args: { rows: v.array(v.any()), cursorName: v.string(), cursor: v.string() },
   handler: async (ctx, { rows, cursorName, cursor }) => {
     let added = 0;
+    const live = await liveDays(ctx);
     for (const r of rows as Omit<Doc<"trades">, "_id" | "_creationTime">[]) {
       const dupes = await ctx.db.query("trades").withIndex("by_sig", (q) => q.eq("sig", r.sig)).collect();
       if (dupes.some((d) => d.owner === r.owner && d.kind === r.kind && d.side === r.side)) continue;
@@ -439,6 +459,7 @@ export const insertTradesAndCursor = internalMutation({
         .first());
       await ctx.db.insert("trades", r);
       added++;
+      if (live) await bumpDay(ctx, r);
       if (first) {
         const m = await ctx.db.get(r.marketId as Id<"markets">);
         if (m) await ctx.db.patch(m._id, { traders: m.traders + 1 });
