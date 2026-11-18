@@ -10,15 +10,12 @@ import { cn } from "@/lib/utils";
 
 export const SITE_NAV = [
   { href: "/markets", label: "Markets" },
-  { href: "/docs/how-it-works", label: "How it works" },
   { href: "/stats", label: "Stats" },
   { href: "/agents", label: "Agents" },
   { href: "/docs", label: "Docs" },
 ] as const;
 
 function isActive(pathname: string, href: string) {
-  if (href === "/docs")
-    return pathname.startsWith("/docs") && pathname !== "/docs/how-it-works";
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 

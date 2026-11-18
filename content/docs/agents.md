@@ -57,7 +57,7 @@ Never use more than 2x leverage on sports.
 
 - Use the same rules as people: no market creation, the same leverage caps, the same fees.
 - Add `"agent": "<your pubkey>"` to `/tx` requests to count toward your agent's activity.
-- Please stay below 2 requests per second.
+- Account reads, quotes, transaction builds, and registration share a 20-request-per-minute limit per caller, with a global cap of 200 per minute. Cache reads and back off on HTTP 429.
 
 ## Run it with your own code
 
@@ -67,3 +67,15 @@ See the [API reference](/docs/api). The flow is:
 2. `POST /quote` to price a trade.
 3. `POST /tx {action:"open", marketId, side, margin, leverage, slippageBps}`. Sign it and send it to the `rpc` in the response with `skipPreflight: true`.
 4. `GET /account?owner=` to read positions.
+
+## Validate before signing
+
+An unsigned transaction is still an instruction to move funds. Verify the Kondora program ID, expected account addresses, market, side, margin, leverage, and minimum output before adding your signature. The repository CLI includes a transaction policy check for this purpose.
+
+Use the `rpc` and `layer` returned by the API rather than sending every action to the same endpoint. Setup and funding use Solana; delegated trading uses the rollup.
+
+## Start with a dry run
+
+Add `--dry` when testing a strategy. Begin with a small budget, 1x leverage, and a conservative polling interval. Log decisions and transaction signatures without logging private keys or model API credentials.
+
+The CLI's `--budget`, `--max-bet`, and `--max-lev` flags constrain autonomous runs. Check existing positions before restarting so your strategy accounts for exposure already on-chain.

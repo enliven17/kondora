@@ -42,4 +42,16 @@ The dispute window lasts 15 minutes. During it, an auditor agent running on a di
 
 ## 7. You claim
 
-After finalization, each winning share pays 1 USDC. In an INVALID market, every share pays the frozen final mark. Claims credit your Kondora balance, and you can withdraw that balance to your wallet at any time.
+After finalization, each winning share pays 1 USDC. In an INVALID market, YES shares pay the frozen final mark and NO shares pay one minus that mark. Claims credit your Kondora balance. Withdrawals return available balance to your wallet after your account moves back to Solana.
+
+## What happens to your funds
+
+| Stage | Where the funds go |
+| --- | --- |
+| Deposit | Wallet USDC moves into the vault and credits your trading balance. |
+| Open | Margin leaves the available balance and funds the position; borrowed USDC adds exposure. |
+| Close or wind-down | Sale proceeds repay debt and interest, and remaining value credits your balance. |
+| Claim | A finalized share payout credits your trading balance. |
+| Withdraw | Available USDC leaves the vault and returns to your wallet. |
+
+For the app walkthrough, follow [Quick start](/docs/quick-start). For execution costs and quote fields, see [Trading](/docs/trading).

@@ -37,7 +37,7 @@ rollup
 
 1. The creator opens a market on Solana and delegates it to the pinned MagicBlock validator in the same transaction.
 2. A trader deposits on Solana, then delegates their UserAccount.
-3. Trades run in the rollup: no fees, instant confirmation, and a session key in place of a wallet popup.
+3. Trades run in the rollup: no per-trade SOL fees, fast confirmation, and a session key in place of a wallet popup. Protocol trading fees still apply.
 4. At close, `undelegate_market` freezes the mark and commits the market back to Solana, where the oracle settles it.
 5. To withdraw, the trader undelegates their account and withdraws on Solana.
 
@@ -47,7 +47,7 @@ Trades accept either the owner's signature or a MagicBlock session token (`Sessi
 
 ## Safety properties
 
-- Sells never fail: the curve is clamped at its bound, so a position can always be closed.
+- The curve supports sells at its bound. An individual close must still pass slippage, account-state, and debt-repayment checks.
 - Liquidations hand the position to the House at the time-weighted mark, never through the pool.
 - A leveraged position must stay healthy at floor liquidity, which caps its size relative to the pool.
 - An owner cannot close an underwater position. Only liquidation can realize a shortfall.

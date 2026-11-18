@@ -5,6 +5,7 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { Diagram } from "./diagrams";
+import { CodeBlock } from "./code-block";
 
 function textOf(node: ReactNode): string {
   if (typeof node === "string" || typeof node === "number") return String(node);
@@ -47,13 +48,16 @@ export function Markdown({ source }: { source: string }) {
         <table>{children}</table>
       </div>
     ),
-    // ```diagram <name>``` renders an animated diagram instead of a code block.
-    pre: ({ children, node: _node, ...props }) => {
+    // A diagram fence renders a responsive flow or chart instead of a code block.
+    pre: ({ children }) => {
       const child = Children.toArray(children)[0];
       if (isValidElement<{ className?: string; children?: ReactNode }>(child) && child.props.className?.includes("language-diagram")) {
         return <Diagram name={textOf(child.props.children)} />;
       }
-      return <pre {...props}>{children}</pre>;
+      const language = isValidElement<{ className?: string }>(child)
+        ? child.props.className?.match(/language-([\w-]+)/)?.[1] ?? ""
+        : "";
+      return <CodeBlock code={textOf(children)} language={language}>{children}</CodeBlock>;
     },
   };
 

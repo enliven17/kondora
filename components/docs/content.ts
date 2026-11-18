@@ -55,7 +55,7 @@ export function getAllDocs(): Doc[] {
       const { data, content } = matter(fs.readFileSync(path.join(DIR, file), "utf8"));
       const slug = file.replace(/\.md$/, "");
       // The page renders the title from frontmatter, so drop a leading H1.
-      const body = content.replace(/^\s*#\s+.+\n/, "").trim();
+      const body = content.replace(/^\s*#\s+[^\r\n]+(?:\r?\n|$)/, "").trim();
       return {
         slug,
         title: String(data.title ?? slug),
@@ -77,6 +77,16 @@ export function getDoc(slug: string): Doc | null {
 
 export function docHref(slug: string) {
   return slug === DEFAULT_DOC ? "/docs" : `/docs/${slug}`;
+}
+
+/** Only public documentation is sent to the client-side search. */
+export function getDocSearch() {
+  return getAllDocs().map((doc) => ({
+    href: docHref(doc.slug),
+    title: doc.title,
+    description: doc.description,
+    text: stripInline(doc.body).replace(/```[\s\S]*?```/g, " "),
+  }));
 }
 
 /** Sections in reading order, each with its docs. */

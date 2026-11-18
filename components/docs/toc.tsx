@@ -23,7 +23,7 @@ export function DocsToc({ headings }: { headings: { depth: 2 | 3; text: string; 
   if (headings.length === 0) return null;
 
   return (
-    <nav aria-label="On this page" className="sticky top-24">
+    <nav aria-label="On this page" className="sticky top-24 max-h-[calc(100dvh-7rem)] overflow-y-auto pb-8">
       <p className="text-micro uppercase text-haze">On this page</p>
       <ul className="mt-3 space-y-1.5 border-l border-cocoa/10">
         {headings.map((h) => (
