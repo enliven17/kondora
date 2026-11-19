@@ -1,6 +1,6 @@
 import { OG_CONTENT_TYPE, OG_SIZE, renderOg } from "@/components/brand/og";
 
-export const alt = "Kondora: trade what happens next";
+export const alt = "Kondora on Solana: trade what happens next";
 export const size = OG_SIZE;
 export const contentType = OG_CONTENT_TYPE;
 

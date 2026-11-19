@@ -1,13 +1,13 @@
 <p align="center">
-  <a href="https://kondora.vercel.app">
+  <a href="https://kondora.xyz">
     <img src="brand/social/x-banner.png" alt="Kondora — Trade what happens next. Leveraged prediction markets on Solana." width="100%" />
   </a>
 </p>
 
 <p align="center">
-  <a href="https://kondora.vercel.app/markets"><img alt="Network: Solana devnet" src="https://img.shields.io/badge/Solana-devnet-320713?style=flat-square&amp;logo=solana&amp;logoColor=FFF3F5&amp;labelColor=23050D" /></a>
-  <a href="https://kondora.vercel.app/docs/leverage"><img alt="Leverage: up to 5x" src="https://img.shields.io/badge/Leverage-up_to_5x-FFC7CF?style=flat-square&amp;labelColor=320713" /></a>
-  <a href="https://kondora.vercel.app/docs/program"><img alt="Execution: MagicBlock Ephemeral Rollups" src="https://img.shields.io/badge/MagicBlock-Ephemeral_Rollups-FFFC8F?style=flat-square&amp;labelColor=320713" /></a>
+  <a href="https://kondora.xyz/markets"><img alt="Network: Solana devnet" src="https://img.shields.io/badge/Solana-devnet-320713?style=flat-square&amp;logo=solana&amp;logoColor=FFF3F5&amp;labelColor=23050D" /></a>
+  <a href="https://kondora.xyz/docs/leverage"><img alt="Leverage: up to 5x" src="https://img.shields.io/badge/Leverage-up_to_5x-FFC7CF?style=flat-square&amp;labelColor=320713" /></a>
+  <a href="https://kondora.xyz/docs/program"><img alt="Execution: MagicBlock Ephemeral Rollups" src="https://img.shields.io/badge/MagicBlock-Ephemeral_Rollups-FFFC8F?style=flat-square&amp;labelColor=320713" /></a>
   <a href="https://nextjs.org"><img alt="Next.js 16" src="https://img.shields.io/badge/Next.js-16-FFF3F5?style=flat-square&amp;logo=nextdotjs&amp;labelColor=23050D" /></a>
   <a href="https://www.convex.dev"><img alt="Backend: Convex" src="https://img.shields.io/badge/Backend-Convex-FF8A94?style=flat-square&amp;labelColor=320713" /></a>
 </p>
@@ -18,10 +18,10 @@
 </p>
 
 <p align="center">
-  <a href="https://kondora.vercel.app/markets"><strong>Open the app</strong></a> ·
-  <a href="https://kondora.vercel.app/docs">Documentation</a> ·
-  <a href="https://kondora.vercel.app/docs/agents">Build an agent</a> ·
-  <a href="https://kondora.vercel.app/brand">Brand kit</a>
+  <a href="https://kondora.xyz/markets"><strong>Open the app</strong></a> ·
+  <a href="https://kondora.xyz/docs">Documentation</a> ·
+  <a href="https://kondora.xyz/docs/agents">Build an agent</a> ·
+  <a href="https://kondora.xyz/brand">Brand kit</a>
 </p>
 
 ## A market that runs itself
@@ -125,6 +125,6 @@ have no real-money value. Leverage can lose your margin, and automated sources
 and infrastructure can fail. Read the [risk notes](content/docs/risks.md) before trading.
 
 <p align="center">
-  <a href="https://kondora.vercel.app"><img src="brand/logo/kondora-mark-plum.svg" alt="Kondora" width="40" /></a><br />
-  <a href="https://kondora.vercel.app">kondora.vercel.app</a>
+  <a href="https://kondora.xyz"><img src="brand/logo/kondora-mark-plum.svg" alt="Kondora" width="40" /></a><br />
+  <a href="https://kondora.xyz">kondora.xyz</a>
 </p>
