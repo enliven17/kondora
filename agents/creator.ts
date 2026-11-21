@@ -13,9 +13,9 @@ import { Candidate, Category, DAY, nowSec } from "./types";
 
 export const CATEGORIES: Category[] = ["crypto", "macro", "sports", "esports", "politics", "world", "tech", "culture"];
 
-/** Desired number of open markets per category. Sum is the live market target. */
+/** Desired number of open markets per category. Focused for deep devnet liquidity. */
 export const TARGETS: Record<Category, number> = {
-  crypto: 20, macro: 10, sports: 22, esports: 8, politics: 12, world: 10, tech: 10, culture: 8,
+  crypto: 1, macro: 1, sports: 1, esports: 1, politics: 1, world: 1, tech: 1, culture: 1,
 };
 
 const BANNED = /\b(die|dies|death|dead|killed|assassinat|suicide|shooting|terror attack|murder|overdose|kidnap)\b/i;

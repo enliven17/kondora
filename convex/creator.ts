@@ -22,9 +22,9 @@ export const run = internalAction({
     try {
       const creator = keypairFromEnv("CREATOR_SECRET");
       const conn = baseConnection();
-      const subsidy = usdc("MARKET_SUBSIDY_USDC", 50);
-      const lend = usdc("MARKET_LEND_USDC", 100);
-      const maxNew = Number(process.env.CREATOR_MAX_PER_RUN ?? 20);
+      const subsidy = usdc("MARKET_SUBSIDY_USDC", 30);
+      const lend = usdc("MARKET_LEND_USDC", 60);
+      const maxNew = Number(process.env.CREATOR_MAX_PER_RUN ?? 4);
 
       // Skip the whole planning pass (sources + LLM) when the House cannot fund a market.
       const start = await fetchConfig(conn);
